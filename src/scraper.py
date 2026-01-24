@@ -101,12 +101,27 @@ class NewsScraper:
         
         # 3. Content Body Extraction (Heuristic)
         # Remove scripts, styles, navs
-        for script in soup(["script", "style", "nav", "header", "footer", "aside"]):
+        for script in soup(["script", "style", "nav", "header", "footer", "aside", "form", "iframe", "noscript"]):
             script.decompose()
 
-        # Find the main text container - this is tricky and site specific, 
-        # but p tags in 'article' or 'main' are usually good bets.
-        article_body = soup.find("article")
+        # Specific selectors for known sites
+        article_body = None
+        
+        # Daily Maverick & WordPress sites often use these
+        selectors = [
+            "div.entry-content", 
+            "div.article-body", 
+            "div.article__body", 
+            "section.article-content",
+            "article"
+        ]
+        
+        for selector in selectors:
+            found = soup.select_one(selector)
+            if found:
+                article_body = found
+                break
+        
         if not article_body:
             article_body = soup.find("main")
         
@@ -114,8 +129,15 @@ class NewsScraper:
             # Fallback: Just grab all p tags if no semantic container
             article_body = soup
         
+        # Extract text from paragraphs, but filter out very short ones (links, disclaimers)
         paragraphs = article_body.find_all("p")
-        text_content = "\n\n".join([p.get_text(strip=True) for p in paragraphs if len(p.get_text(strip=True)) > 20])
+        valid_paragraphs = [p.get_text(strip=True) for p in paragraphs if len(p.get_text(strip=True)) > 40]
+        
+        # If paragraph extraction yields little, try getting all text from the body container
+        if len(valid_paragraphs) < 2 and article_body != soup:
+             text_content = article_body.get_text(separator="\n", strip=True)
+        else:
+             text_content = "\n\n".join(valid_paragraphs)
 
         return {
             "url": url,

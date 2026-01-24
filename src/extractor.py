@@ -15,9 +15,9 @@ class IntelligenceExtractor:
 
     # Free model strategy list (Prioritized by user preference)
     FREE_MODEL_LIST = [
-        "tngtech/deepseek-r1t2-chimera",      # Strongest reasoning (671B)
         "meta-llama/llama-3.3-70b-instruct",  # Robust generalist
         "google/gemma-3-27b-it",              # Good structured output
+        "tngtech/deepseek-r1t2-chimera",      # Strongest reasoning (671B)
         "deepseek/deepseek-r1-0528",          # Strong reasoning
         "z-ai/glm-4.5-air",                   # Agentic/Thinking capability
         "tngtech/deepseek-r1t-chimera",       # Balanced efficiency
