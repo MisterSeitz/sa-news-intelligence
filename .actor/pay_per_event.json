@@ -1,0 +1,23 @@
+{
+    "actor-start": {
+        "eventTitle": "Run World News Intelligence (Base Fee)",
+        "eventDescription": "Flat fee for starting the Actor run. This fee includes the processing and full analysis of the first 20 articles.",
+        "eventPriceUsd": 0.05
+    },
+    "article-fetch": {
+        "eventTitle": "1. Google Search AI Overview (Pay Point 1)",
+        "eventDescription": "Price per article processed beyond the included initial 20. This covers the cost of calling the Apify Google Search Results Scraper to acquire the AI Overview summary.",
+        "eventPriceUsd": 0.005
+    },
+    "llm-analysis-tokens-used": {
+        "eventTitle": "2. LLM Analysis & Structuring (Pay Point 2)",
+        "eventDescription": "Price per 1,000 tokens used for the combined LLM analysis (Sentiment, Category, Entities). This covers the prompt and the structured JSON output.",
+        "eventPriceUsd": 0.0020,
+        "eventUnit": 1000
+    },
+    "article-summary": {
+        "eventTitle": "Article Processing Fee (Tiered)",
+        "eventDescription": "Fee per article processed beyond the initial 20 articles included in the base fee. (NOTE: Cost is accounted for via token usage in 'llm-analysis-tokens-used' event.)",
+        "eventPriceUsd": 0.002
+    }
+}

@@ -1,0 +1,67 @@
+{
+  "actorSpecification": 1,
+  "views": {
+    "results": {
+      "title": "News Intelligence Results",
+      "transformation": {
+        "fields": [
+          "published",
+          "source",
+          "title",
+          "sentiment",
+          "category",
+          "key_entities",
+          "gdelt_tone",
+          "snippet_sources",
+          "summary",
+          "url"
+        ]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "published": {
+            "label": "Published",
+            "format": "date"
+          },
+          "source": {
+            "label": "Source",
+            "format": "text"
+          },
+          "title": {
+            "label": "Title",
+            "format": "text"
+          },
+          "sentiment": {
+            "label": "Urgency/Importance",
+            "format": "text"
+          },
+          "category": {
+            "label": "Category",
+            "format": "text"
+          },
+          "key_entities": {
+            "label": "Key Entities",
+            "format": "array"
+          },
+          "gdelt_tone": {
+            "label": "Urgency Score",
+            "format": "number"
+          },
+          "snippet_sources": {
+            "label": "Grounding Snippets",
+            "format": "array"
+          },
+          "summary": {
+            "label": "AI Summary",
+            "format": "text"
+          },
+          "url": {
+            "label": "Original URL",
+            "format": "link"
+          }
+        }
+      }
+    }
+  }
+}

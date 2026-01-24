@@ -1,0 +1,73 @@
+{
+  "title": "📰 World News Intelligence Pipeline",
+  "description": "Fetch and analyze world news from top global sources using a reliable single-stage AI analysis pipeline with DuckDuckGo grounding, prioritizing source diversity.",
+  "schemaVersion": 1,
+  "type": "object",
+  "properties": {
+    "source": {
+      "title": "News Category",
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "all",
+        "Technology",
+        "Business/Finance",
+        "World/Politics",
+        "Health/Science",
+        "Lifestyle/Culture",
+        "Other",
+        "custom"
+      ],
+      "enumTitles": [
+        "🌍 All Categories [BBC, NYT, Reuters, WSJ...]",
+        "🔬 Technology [TechCrunch, ZDNet]",
+        "📊 Business/Finance [WSJ, Bloomberg, FT]",
+        "🗳️ World/Politics [BBC, NYT, Reuters, Politico]",
+        "💊 Health/Science [ScienceDaily, New Scientist]",
+        "☕ Lifestyle/Culture [NYT Arts, Guardian]",
+        "🧩 Other [Axios, NPR, The Atlantic]",
+        "🧩 Custom URL"
+      ],
+      "default": "all",
+      "description": "Select the news category to collect from. Articles will be fetched from different sources within this category first."
+    },
+    "customFeedUrl": {
+      "title": "Custom RSS Feed URL",
+      "type": "string",
+      "editor": "textfield",
+      "description": "Provide a custom RSS feed URL (if 'Custom' selected)."
+    },
+    "maxArticles": {
+      "title": "Maximum Articles",
+      "type": "integer",
+      "editor": "number",
+      "description": "Provide a maximum number of articles to fetch. The pipeline will prioritize using a different source for each article until sources are exhausted.",
+      "default": 20
+    },
+    "region": {
+      "title": "Search Region (DuckDuckGo)",
+      "type": "string",
+      "editor": "select",
+      "description": "Region to limit search results by (e.g., 'us-en' for US, 'wt-wt' for World).",
+      "default": "wt-wt",
+      "enum": [ "wt-wt", "us-en", "uk-en", "au-en", "de-de", "fr-fr" ],
+      "enumTitles": [ "World (Default)", "US (English)", "UK (English)", "Australia (English)", "Germany (German)", "France (French)" ]
+    },
+    "timeLimit": {
+      "title": "Time Limit (DuckDuckGo)",
+      "type": "string",
+      "editor": "select",
+      "description": "Limit search results by time.",
+      "default": "w",
+      "enum": [ "any", "d", "w", "m" ],
+      "enumTitles": [ "Any Time", "Past Day", "Past Week", "Past Month" ]
+    },
+    "runTestMode": {
+      "title": "Admin Test Mode (Bypasses ALL External API Costs)",
+      "type": "boolean",
+      "description": "Setting this to true bypasses the DuckDuckGo Search and the OpenAI LLM call, enabling zero-cost testing of the workflow. **DO NOT ENABLE IN PRODUCTION.**",
+      "default": false
+    }
+  },
+  "required": ["source"]
+}
