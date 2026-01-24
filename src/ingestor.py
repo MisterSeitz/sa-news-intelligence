@@ -177,9 +177,15 @@ class SupabaseIngestor:
         # Niche Specific Adjustments
         if target_table == "entries":
             data["summary"] = analysis.get("summary") # entries uses 'summary' VS 'ai_summary'
-            del data["ai_summary"]
+            if "ai_summary" in data: del data["ai_summary"]
+            
             data["sentiment_label"] = analysis.get("sentiment")
-            del data["sentiment"]
+            if "sentiment" in data: del data["sentiment"]
+            
+            # Map 'published' -> 'published_date' for entries table
+            if "published" in data:
+                data["published_date"] = data["published"]
+                del data["published"]
         
         try:
             self.supabase.schema(target_schema).table(target_table).insert(data).execute()
