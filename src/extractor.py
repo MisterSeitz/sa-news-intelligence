@@ -15,8 +15,6 @@ class IntelligenceExtractor:
 
     # Free model strategy list (Prioritized by user preference)
     FREE_MODEL_LIST = [
-        "xiaomi/mimo-v2-flash",
-        "mistralai/devstral-2-2512",
         "tngtech/deepseek-r1t2-chimera",
         "tngtech/deepseek-r1t-chimera",
         "z-ai/glm-4.5-air",
