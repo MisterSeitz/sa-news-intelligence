@@ -78,12 +78,14 @@ class SupabaseIngestor:
             # For this MVP step, let's Insert.
             
             # Check exist first to avoid spamming dups if no unique constraint
-            res = self.supabase.table("people_intelligence", "master_identities").select("id").eq("full_name", name).execute()
+            # Check exist first to avoid spamming dups if no unique constraint
+            # Use .schema() for non-public schemas
+            res = self.supabase.schema("people_intelligence").table("master_identities").select("id").eq("full_name", name).execute()
             if res.data:
                 # Update last_seen
-                self.supabase.table("people_intelligence", "master_identities").update({"last_seen_at": "now()", "type": type_}).eq("id", res.data[0]['id']).execute()
+                self.supabase.schema("people_intelligence").table("master_identities").update({"last_seen_at": "now()", "type": type_}).eq("id", res.data[0]['id']).execute()
             else:
-                self.supabase.table("people_intelligence", "master_identities").insert(data).execute()
+                self.supabase.schema("people_intelligence").table("master_identities").insert(data).execute()
                 logger.info(f"Ingested Person: {name} ({type_})")
 
         except Exception as e:
@@ -97,9 +99,9 @@ class SupabaseIngestor:
                 "created_at": "now()"
             }
             # Similar check for organizations
-            res = self.supabase.table("business_intelligence", "organizations").select("id").eq("registered_name", name).execute()
+            res = self.supabase.schema("business_intelligence").table("organizations").select("id").eq("registered_name", name).execute()
             if not res.data:
-                self.supabase.table("business_intelligence", "organizations").insert(data).execute()
+                self.supabase.schema("business_intelligence").table("organizations").insert(data).execute()
                 logger.info(f"Ingested Org: {name}")
         except Exception as e:
             logger.error(f"Error ingesting org {name}: {e}")
@@ -121,7 +123,8 @@ class SupabaseIngestor:
                 "published_at": raw.get("published_date")
             }
             # source_url is unique in schema
-            self.supabase.table("crime_intelligence", "incidents").upsert(data, on_conflict="source_url").execute()
+            # source_url is unique in schema
+            self.supabase.schema("crime_intelligence").table("incidents").upsert(data, on_conflict="source_url").execute()
             logger.info(f"Ingested Incident: {data['title']}")
         except Exception as e:
             logger.error(f"Error ingesting incident: {e}")
@@ -179,7 +182,7 @@ class SupabaseIngestor:
             del data["sentiment"]
         
         try:
-            self.supabase.table(target_schema, target_table).insert(data).execute()
+            self.supabase.schema(target_schema).table(target_table).insert(data).execute()
             logger.info(f"Ingested content to {target_schema}.{target_table}")
         except Exception as e:
             logger.error(f"Error ingesting content to {target_schema}.{target_table}: {e}")

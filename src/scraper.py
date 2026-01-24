@@ -120,9 +120,27 @@ class NewsScraper:
                 if len(link) < 25: continue # Too short to be deep article
                 
                 # Exclude common non-article paths
-                exclude = ["/category/", "/author/", "/tag/", "/section/", "/contact", "/about", "/login", "/register", "javascript:", "#"]
+                exclude = ["/category/", "/author/", "/tag/", "/section/", "/contact", "/about", "/login", "/register", "javascript:", "#", 
+                           "business-maverick", "maverick-life", "maverick-citizen", "maverick-sports", "/opinion/"]
                 if any(x in link.lower() for x in exclude):
                     continue
+                
+                # Heuristic: Valid articles usually have a date or 'article' or significant depth
+                # Daily Maverick: /article/2025-01-01...
+                # IOL: /news/politics/slug... (depth 3)
+                
+                import re
+                has_date = bool(re.search(r'202[3-6]', link))
+                has_article_slug = "/article/" in link
+                
+                # Check path depth (segments after domain)
+                path = link.split(domain)[-1].strip("/")
+                depth = len(path.split("/"))
+                
+                # If it looks like a section (low depth, no date/article keyword), skip it
+                if depth < 2 and not (has_date or has_article_slug):
+                     # logger.debug(f"Skipping probable section page (depth {depth}): {link}")
+                     continue
                 
                 if link == start_url or link == start_url + "/": continue
                 
