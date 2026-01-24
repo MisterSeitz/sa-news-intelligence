@@ -39,7 +39,12 @@ class SupabaseIngestor:
 
         # 2. Ingest Incidents (Crime/Safety)
         if analysis_result.get("incidents"):
-             await self._ingest_incident(analysis_result.get("incidents"), analysis_result, raw_data)
+             inc_data = analysis_result.get("incidents")
+             if isinstance(inc_data, list):
+                 for inc in inc_data:
+                     await self._ingest_incident(inc, analysis_result, raw_data)
+             else:
+                 await self._ingest_incident(inc_data, analysis_result, raw_data)
 
         # 3. Route Article Content based on Niche
         await self._route_content(analysis_result, raw_data)
@@ -168,7 +173,9 @@ class SupabaseIngestor:
             "published": raw.get("published_date"),
             "category": analysis.get("category"),
             "ai_summary": analysis.get("summary"),
-            "sentiment": analysis.get("sentiment"),
+            "category": analysis.get("category"),
+            "ai_summary": analysis.get("summary"),
+            # 'sentiment' is NOT common across all tables. Removed from default.
             # Some tables have 'source_feed', others 'source'
             "source": "SA News Scraper",
             "created_at": "now()"
@@ -229,7 +236,36 @@ class SupabaseIngestor:
         if target_table in ["foodtech", "venture_capital"]:
              if raw.get("content"):
                  data["markdown_content"] = raw.get("content")
-                 data["raw_context_source"] = raw.get("content") # Schema might require one or both, safe to try primary
+                 data["raw_context_source"] = raw.get("content")
+        
+        # Handle Sentiment / Risk Level per table
+        sentiment_text = analysis.get("sentiment", "Moderate Urgency")
+        urgency_map = {"High Urgency": 3, "Moderate Urgency": 2, "Low Urgency": 1} # Simple int map
+        
+        if target_table == "entries":
+             data["sentiment_label"] = sentiment_text
+             # entries also has sentiment_score (float)
+             data["sentiment_score"] = float(urgency_map.get(sentiment_text, 2))
+             
+             # Entries uses canonical_url instead of url
+             if "url" in data:
+                 data["canonical_url"] = data["url"]
+                 del data["url"]
+             
+        elif target_table == "web3":
+             # web3 uses sentiment (integer)
+             data["sentiment"] = urgency_map.get(sentiment_text, 2)
+             data["trading_signal"] = sentiment_text # Map text to signal just in case
+             
+        elif target_table == "cybersecurity":
+             # cybersecurity uses risk_level (text)
+             data["risk_level"] = sentiment_text
+             
+        elif target_table in ["gaming", "foodtech", "venture_capital", "health_fitness"]:
+             # These use sentiment (text)
+             data["sentiment"] = sentiment_text
+             
+        # real_estate HAS NO sentiment column, so we do nothing.
         
         try:
             # Deduplication: Use upsert based on unique URL
@@ -240,11 +276,19 @@ class SupabaseIngestor:
             # Most niche tables (real_estate, gaming, etc.) DO NOT have it.
             tables_with_hash = ["entries", "trends", "feed_items"]
             
-            if "url" in data and target_table in tables_with_hash:
-                data["dedup_hash"] = hashlib.md5(data["url"].encode()).hexdigest()
+            # Note: For entries, we deleted 'url' but we still have the original raw 'url' if needed
+            # But the hash should be on the url.
+            source_url = raw.get("url")
+            
+            if source_url and target_table in tables_with_hash:
+                data["dedup_hash"] = hashlib.md5(source_url.encode()).hexdigest()
+
+            # Dynamic conflict target
+            conflict_col = "canonical_url" if target_table == "entries" else "url"
 
             # For Real Estate/Gaming etc, we rely on 'url' unique constraint, but DO NOT send dedup_hash
-            self.supabase.schema(target_schema).table(target_table).upsert(data, on_conflict="url").execute()
+            self.supabase.schema(target_schema).table(target_table).upsert(data, on_conflict=conflict_col).execute()
+            logger.info(f"Ingested/Updated content in {target_schema}.{target_table} (URL: {raw.get('url')})")
             logger.info(f"Ingested/Updated content in {target_schema}.{target_table} (URL: {data.get('url')})")
         except Exception as e:
             logger.error(f"Error ingesting content to {target_schema}.{target_table}: {e}")
