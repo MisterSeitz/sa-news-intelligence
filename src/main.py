@@ -2,9 +2,9 @@ import csv
 import asyncio
 import logging
 from apify import Actor
-from scraper import NewsScraper
-from extractor import IntelligenceExtractor
-from ingestor import SupabaseIngestor
+from .scraper import NewsScraper
+from .extractor import IntelligenceExtractor
+from .ingestor import SupabaseIngestor
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
