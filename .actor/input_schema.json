@@ -39,12 +39,19 @@
       "editor": "textfield",
       "description": "Provide a custom RSS feed URL (if 'Custom' selected)."
     },
-    "maxArticles": {
-      "title": "Maximum Articles",
+    "maxArticlesPerSource": {
+      "title": "Max Articles Per Source",
       "type": "integer",
       "editor": "number",
-      "description": "Provide a maximum number of articles to fetch. The pipeline will prioritize using a different source for each article until sources are exhausted.",
-      "default": 20
+      "description": "Maximum number of articles to scrape from each source URL listing.",
+      "default": 5
+    },
+    "maxArticles": {
+      "title": "Maximum Total Articles",
+      "type": "integer",
+      "editor": "number",
+      "description": "Global limit on total articles fetches across all sources.",
+      "default": 50
     },
     "region": {
       "title": "Search Region (DuckDuckGo)",

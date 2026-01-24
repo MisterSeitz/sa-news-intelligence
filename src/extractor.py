@@ -13,6 +13,15 @@ class IntelligenceExtractor:
     from news article text using an LLM via OpenRouter.
     """
 
+    # Alibaba Cloud Qwen models (Prioritized by capability then cost)
+    ALIBABA_MODEL_LIST = [
+        "qwen-flash",          # Seamless thinking/non-thinking, 1M context
+        "qwen3-coder-flash",   # Strong code/JSON geneation
+        "qwen-mt-flash",       # Fast, cost-effective
+        "qwen-mt-plus",        # High quality fallback
+        "qwen-mt-lite",        # Cheapest fallback
+    ]
+
     # Free model strategy list (Prioritized by user preference)
     FREE_MODEL_LIST = [
         "meta-llama/llama-3.3-70b-instruct",  # Robust generalist
@@ -26,15 +35,34 @@ class IntelligenceExtractor:
     ]
 
     def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None):
-        # Prefer OPENROUTER_API_KEY, fallback to OPENAI_API_KEY
-        self.api_key = api_key or os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
-        self.base_url = base_url or os.getenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
+        # Detect Provider
+        self.is_alibaba = False
+        
+        self.api_key = api_key
+        self.base_url = base_url
         
         if not self.api_key:
-            logger.warning("OPENROUTER_API_KEY/OPENAI_API_KEY is not set. Extraction will fail unless in test mode.")
+             if os.getenv("ALIBABA_CLOUD_API_KEY"):
+                 self.api_key = os.getenv("ALIBABA_CLOUD_API_KEY")
+                 self.is_alibaba = True
+                 # Default to International endpoint (Singapore)
+                 self.base_url = self.base_url or "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+             elif os.getenv("OPENROUTER_API_KEY"):
+                 self.api_key = os.getenv("OPENROUTER_API_KEY")
+                 self.base_url = self.base_url or "https://openrouter.ai/api/v1"
+             else:
+                 self.api_key = os.getenv("OPENAI_API_KEY")
+                 self.base_url = self.base_url or "https://openrouter.ai/api/v1" # Default fallback
+        
+        if not self.api_key:
+            logger.warning("No API Key found (ALIBABA/OPENROUTER/OPENAI). Extraction will fail unless in test mode.")
         
         try:
-            self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+            if self.api_key:
+                self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+                logger.info(f"Initialized LLM Client. Alibaba: {self.is_alibaba}, Base: {self.base_url}")
+            else:
+                self.client = None
         except Exception as e:
             logger.error(f"Failed to initialize OpenAI client: {e}")
             self.client = None
@@ -42,7 +70,7 @@ class IntelligenceExtractor:
     def analyze(self, article_data: Dict[str, Any], test_mode: bool = False) -> Dict[str, Any]:
         """
         Analyzes the article content to extract entities, incidents, and classification.
-        Iterates through FREE_MODEL_LIST until successful.
+        Iterates through configured models until successful.
         """
         if test_mode:
             logger.info("TEST MODE: returning mock extraction data.")
@@ -80,7 +108,19 @@ class IntelligenceExtractor:
         JSON OUTPUT ONLY.
         """
 
-        for model in self.FREE_MODEL_LIST:
+        # Determine model list
+        custom_model = os.getenv("LLM_MODEL")
+        if custom_model:
+             models_to_try = [custom_model]
+             logger.info(f"Using custom model from env: {custom_model}")
+        elif self.is_alibaba:
+             models_to_try = self.ALIBABA_MODEL_LIST
+             logger.info(f"Using Alibaba Cloud fallback list.")
+        else:
+             models_to_try = self.FREE_MODEL_LIST
+             logger.info(f"Using OpenRouter free fallback list.")
+
+        for model in models_to_try:
             try:
                 logger.info(f"Attempting extraction with model: {model}")
                 response = self.client.chat.completions.create(
@@ -103,7 +143,11 @@ class IntelligenceExtractor:
                 return json.loads(result_text.strip())
 
             except APIError as e:
-                logger.warning(f"Model {model} failed with API Error: {e}")
+                # Handle Quota/Payment errors specifically
+                if e.code == "402" or "credits" in str(e).lower() or "payment" in str(e).lower() or e.status_code == 429:
+                     logger.warning(f"Model {model} hit Payment/Quota limit: {e}")
+                else:
+                     logger.warning(f"Model {model} failed with API Error: {e}")
                 continue # Try next model
             except json.JSONDecodeError:
                 logger.warning(f"Model {model} failed to return valid JSON.")
@@ -112,7 +156,7 @@ class IntelligenceExtractor:
                 logger.warning(f"Model {model} failed with unexpected error: {e}")
                 continue # Try next model
 
-        logger.error("All free models failed extraction.")
+        logger.error(f"All models failed extraction. (Using Alibaba: {self.is_alibaba})")
         return {}
 
     def _get_mock_data(self) -> Dict[str, Any]:

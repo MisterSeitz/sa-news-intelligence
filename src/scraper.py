@@ -68,6 +68,75 @@ class NewsScraper:
             return {"error": str(e)}
         # No finally block needed for page.close() as context.close() handles it
 
+    async def get_article_links(self, start_url: str, max_links: int = 5) -> List[str]:
+        """
+        Crawls a section/archive page to find individual article URLs.
+        """
+        if not self.browser:
+            raise RuntimeError("NewsScraper context not started.")
+
+        context = await self.browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        )
+        page = await context.new_page()
+        links = set()
+        
+        try:
+            logger.info(f"🕷️ Crawling listing page: {start_url}")
+            response = await page.goto(start_url, timeout=30000, wait_until="domcontentloaded")
+            if not response or not response.ok:
+                logger.error(f"❌ Failed to load listing page: {start_url}")
+                return []
+
+            # Wait for some content
+            try:
+                await page.wait_for_selector("a", timeout=5000)
+            except:
+                pass
+
+            # Heuristic 1: Look for links inside article tags or headings
+            # Common patterns: article h3 a, h2 a, div.post a
+            # We'll grab all 'a' tags and filter carefully
+            
+            # Evaluate js to get links to avoid transferring lots of data
+            # Filter: 
+            # 1. Must be http/https
+            # 2. Must be same domain (approx)
+            # 3. Path length > 10 (avoid home/contact)
+            # 4. Not in excluding words
+            
+            domain = start_url.split("/")[2]
+            
+            found_links = await page.evaluate('''() => {
+                const links = Array.from(document.querySelectorAll('a'));
+                return links.map(a => a.href);
+            }''')
+            
+            for link in found_links:
+                if len(links) >= max_links * 2: # Harvest more then prune
+                    break
+                    
+                if domain not in link: continue
+                if len(link) < 25: continue # Too short to be deep article
+                
+                # Exclude common non-article paths
+                exclude = ["/category/", "/author/", "/tag/", "/section/", "/contact", "/about", "/login", "/register", "javascript:", "#"]
+                if any(x in link.lower() for x in exclude):
+                    continue
+                
+                if link == start_url or link == start_url + "/": continue
+                
+                links.add(link)
+                
+            logger.info(f"Found {len(links)} potential article links on {start_url}")
+
+        except Exception as e:
+            logger.error(f"Error crawling {start_url}: {e}")
+        finally:
+            await context.close()
+            
+        return list(links)[:max_links]
+
     def _extract_content(self, html_content: str, url: str) -> Dict[str, Optional[str]]:
         """
         Parses HTML using BeautifulSoup to extract structured data.
