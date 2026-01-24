@@ -175,7 +175,37 @@ class SupabaseIngestor:
         }
 
         # Niche Specific Adjustments
-        if target_table == "entries":
+        if target_table == "news" and target_schema == "sports_intelligence":
+             # Sports specific schema mapping
+             data["summary"] = analysis.get("summary")
+             if "ai_summary" in data: del data["ai_summary"]
+             
+             if "published" in data:
+                 data["published_at"] = data["published"]
+                 del data["published"]
+                 
+             # Extract domain for source_domain
+             try:
+                 from urllib.parse import urlparse
+                 domain = urlparse(data.get("url", "")).netloc.replace("www.", "")
+                 data["source_domain"] = domain
+             except:
+                 data["source_domain"] = "unknown"
+                 
+             # Handle sentiment: Schema has sentiment_score (numeric), not text
+             urgency_map = {"High Urgency": 9, "Moderate Urgency": 5, "Low Urgency": 2}
+             score = urgency_map.get(analysis.get("sentiment"), 5)
+             data["sentiment_score"] = score
+             
+             # Move extras to structured_data
+             data["structured_data"] = {
+                 "sentiment_label": analysis.get("sentiment"),
+                 "original_source": "SA News Scraper"
+             }
+             if "sentiment" in data: del data["sentiment"]
+             if "source" in data: del data["source"]
+
+        elif target_table == "entries":
             data["summary"] = analysis.get("summary") # entries uses 'summary' VS 'ai_summary'
             if "ai_summary" in data: del data["ai_summary"]
             
@@ -188,7 +218,13 @@ class SupabaseIngestor:
                 del data["published"]
         
         try:
-            self.supabase.schema(target_schema).table(target_table).insert(data).execute()
-            logger.info(f"Ingested content to {target_schema}.{target_table}")
+            # Deduplication: Use upsert based on unique URL
+            # Also generate dedup_hash for tables that support it (like entries)
+            import hashlib
+            if "url" in data:
+                data["dedup_hash"] = hashlib.md5(data["url"].encode()).hexdigest()
+
+            self.supabase.schema(target_schema).table(target_table).upsert(data, on_conflict="url").execute()
+            logger.info(f"Ingested/Updated content in {target_schema}.{target_table} (URL: {data.get('url')})")
         except Exception as e:
             logger.error(f"Error ingesting content to {target_schema}.{target_table}: {e}")
