@@ -216,6 +216,20 @@ class SupabaseIngestor:
             if "published" in data:
                 data["published_date"] = data["published"]
                 del data["published"]
+            
+            # Map content -> content (for entries)
+            if raw.get("content"):
+                data["content"] = raw.get("content")
+
+        # Niche tables often use 'raw_context_source' or 'markdown_content'
+        if target_table in ["real_estate", "gaming", "web3", "cybersecurity", "health_fitness"]:
+             if raw.get("content"):
+                 data["raw_context_source"] = raw.get("content")
+        
+        if target_table in ["foodtech", "venture_capital"]:
+             if raw.get("content"):
+                 data["markdown_content"] = raw.get("content")
+                 data["raw_context_source"] = raw.get("content") # Schema might require one or both, safe to try primary
         
         try:
             # Deduplication: Use upsert based on unique URL
