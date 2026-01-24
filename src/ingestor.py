@@ -115,11 +115,15 @@ class SupabaseIngestor:
         try:
             severity_map = {"High Urgency": 3, "Moderate Urgency": 2, "Low Urgency": 1}
             severity = severity_map.get(analysis.get("sentiment"), 1)
+            severity = severity_map.get(analysis.get("sentiment"), 1)
+            
+            # Safe Date Parsing
+            occurred_at = self._parse_date(incident.get("date")) or raw.get("published_date") or "now()"
             
             data = {
                 "title": raw.get("title"),
                 "description": incident.get("description"),
-                "occurred_at": incident.get("date") or raw.get("published_date"),
+                "occurred_at": occurred_at,
                 "type": incident.get("type", "Unknown"),
                 "severity_level": severity,
                 "source_url": raw.get("url"),
@@ -289,6 +293,19 @@ class SupabaseIngestor:
             # For Real Estate/Gaming etc, we rely on 'url' unique constraint, but DO NOT send dedup_hash
             self.supabase.schema(target_schema).table(target_table).upsert(data, on_conflict=conflict_col).execute()
             logger.info(f"Ingested/Updated content in {target_schema}.{target_table} (URL: {raw.get('url')})")
-            logger.info(f"Ingested/Updated content in {target_schema}.{target_table} (URL: {data.get('url')})")
         except Exception as e:
             logger.error(f"Error ingesting content to {target_schema}.{target_table}: {e}")
+
+    def _parse_date(self, date_str: str) -> str:
+        """
+        Validates and parses a date string. Returns None if invalid format.
+        Accepts ISO 8601 or simple YYYY-MM-DD.
+        """
+        if not date_str: return None
+        try:
+            from dateutil import parser
+            dt = parser.parse(date_str)
+            return dt.isoformat()
+        except:
+             # Basic check for YYYY encoded in string (e.g. "2024-2025") - treat as invalid
+             return None
