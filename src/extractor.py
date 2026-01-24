@@ -15,14 +15,14 @@ class IntelligenceExtractor:
 
     # Free model strategy list (Prioritized by user preference)
     FREE_MODEL_LIST = [
-        "tngtech/deepseek-r1t2-chimera",
-        "tngtech/deepseek-r1t-chimera",
-        "z-ai/glm-4.5-air",
-        "deepseek/deepseek-r1-0528",
-        "tngtech/r1t-chimera",
-        "qwen/qwen3-coder-480b-a35b-instruct",
-        "meta-llama/llama-3.3-70b-instruct",
-        "google/gemma-3-27b-it",
+        "tngtech/deepseek-r1t2-chimera",      # Strongest reasoning (671B)
+        "meta-llama/llama-3.3-70b-instruct",  # Robust generalist
+        "google/gemma-3-27b-it",              # Good structured output
+        "deepseek/deepseek-r1-0528",          # Strong reasoning
+        "z-ai/glm-4.5-air",                   # Agentic/Thinking capability
+        "tngtech/deepseek-r1t-chimera",       # Balanced efficiency
+        "qwen/qwen3-coder-480b-a35b-instruct",# Good at JSON/Structure
+        "tngtech/r1t-chimera",                # Creative/Storytelling (Last resort)
     ]
 
     def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None):
