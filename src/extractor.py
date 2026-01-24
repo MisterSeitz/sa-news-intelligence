@@ -102,6 +102,7 @@ class IntelligenceExtractor:
         4. **summary**: A concise 1-paragraph summary.
         5. **entities**: List of KEY people and organizations (max 8). 
            Format: {{"name": "...", "type": "Politician"|"Athlete"|"Businessperson"|"Civilian"|"Organization"|"Company"|"GovernmentBody"}}
+           IMPORTANT: Do NOT include cities, countries, or physical locations here (e.g. "Johannesburg"). Use the 'locations' field for those. Only include "GovernmentBody" if it refers to the administration (e.g. "City of Johannesburg").
         6. **incidents**: If a crime/disaster/protest occurred, describe it. Format: {{"type": "...", "date": "...", "description": "..."}} (or null).
         7. **locations**: A list of specific physical locations mentioned (e.g. "Cape Town", "Sandton", "N1 Highway").
         

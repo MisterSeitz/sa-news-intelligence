@@ -219,11 +219,17 @@ class SupabaseIngestor:
         
         try:
             # Deduplication: Use upsert based on unique URL
-            # Also generate dedup_hash for tables that support it (like entries)
+            # Also generate dedup_hash ONLY for tables that support it (entries, etc.)
             import hashlib
-            if "url" in data:
+            
+            # Check if this table supports dedup_hash (based on schema)
+            # Most niche tables (real_estate, gaming, etc.) DO NOT have it.
+            tables_with_hash = ["entries", "trends", "feed_items"]
+            
+            if "url" in data and target_table in tables_with_hash:
                 data["dedup_hash"] = hashlib.md5(data["url"].encode()).hexdigest()
 
+            # For Real Estate/Gaming etc, we rely on 'url' unique constraint, but DO NOT send dedup_hash
             self.supabase.schema(target_schema).table(target_table).upsert(data, on_conflict="url").execute()
             logger.info(f"Ingested/Updated content in {target_schema}.{target_table} (URL: {data.get('url')})")
         except Exception as e:
