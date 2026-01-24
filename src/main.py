@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 # Constants
-CSV_PATH = "../../news-sites/SA_NEWS_Intelligence.csv"
+CSV_PATH = "sources.csv"
 MAX_CONCURRENT_PAGES = 3
 
 async def main():
@@ -23,26 +23,12 @@ async def main():
 
         # 1. Load Sources from CSV
         sources = []
-        try:
-            # Adjust path relative to where main.py is run (usually from src parent)
-            # If running from actor root: src/main.py -> ../news-sites/...
-            # Actually, robust way is relative to this file
+            # Load from Actor root
             import os
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            # We need to go up from src/ -> root/ -> ../reference_docs/news-sites/
-            # The structure is specific to the user's workspace, but in the actor context,
-            # we might need to copy the CSV or reference it directly.
-            # User said: "I have saved archive pages ... in /reference_docs/news-sites/"
-            # The actor is in /reference_docs/sa-news-intelligence
+            base_dir = os.path.dirname(os.path.abspath(__file__)) # src/
+            actor_root = os.path.dirname(base_dir) # sa-news-intelligence/
             
-            # Let's try absolute path based on user's known workspace for local dev
-            # In production Apify, we'd bundle the CSV or fetch it.
-            # For now, local path:
-            csv_path = os.path.join(base_dir, "..", "..", "news-sites", "SA_NEWS_Intelligence.csv")
-            
-            if not os.path.exists(csv_path):
-                 # Fallback for when running inside the actor directory specifically
-                 csv_path = os.path.join(base_dir, "..", "..", "..", "reference_docs", "news-sites", "SA_NEWS_Intelligence.csv")
+            csv_path = os.path.join(actor_root, CSV_PATH)
             
             logger.info(f"Reading sources from {csv_path}")
             
