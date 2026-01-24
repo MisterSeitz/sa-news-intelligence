@@ -23,6 +23,7 @@ async def main():
 
         # 1. Load Sources from CSV
         sources = []
+        try:
             # Load from Actor root
             import os
             base_dir = os.path.dirname(os.path.abspath(__file__)) # src/
