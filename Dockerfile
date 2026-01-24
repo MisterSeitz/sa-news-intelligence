@@ -18,6 +18,8 @@ RUN echo "Python version:" \
  && pip3 --version \
  && echo "Installing dependencies:" \
  && pip3 install --no-cache-dir -r requirements.txt \
+ && echo "Installing Playwright browsers:" \
+ && python3 -m playwright install --with-deps \
  && echo "All installed Python packages:" \
  && pip3 freeze
 
