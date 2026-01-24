@@ -19,7 +19,11 @@ async def main():
         actor_input = await Actor.get_input() or {}
         test_mode = actor_input.get("test_mode", False)
         
-        logger.info(f"Starting SA News Intelligence Actor (Test Mode: {test_mode})")
+        selected_source = actor_input.get("source", "all")
+        custom_url = actor_input.get("customFeedUrl")
+        
+        logger.info(f"🚀 Starting SA News Intelligence Actor")
+        logger.info(f"⚙️  Config: Source='{selected_source}', Test Mode={test_mode}")
 
         # 1. Load Sources from CSV
         sources = []
@@ -31,7 +35,7 @@ async def main():
             
             csv_path = os.path.join(actor_root, CSV_PATH)
             
-            logger.info(f"Reading sources from {csv_path}")
+            logger.info(f"📂 Reading sources from {csv_path}")
             
             with open(csv_path, 'r', encoding='utf-8') as f:
                 reader = csv.DictReader(f)
@@ -39,21 +43,45 @@ async def main():
                     if row.get("URL"):
                         sources.append(row)
         except Exception as e:
-            logger.error(f"Failed to load sources CSV: {e}")
+            logger.error(f"❌ Failed to load sources CSV: {e}")
             return
 
-        logger.info(f"Loaded {len(sources)} sources.")
+        # 2. Filter Sources based on Input
+        target_sources = []
         
-        # 2. Initialize Components
+        if selected_source.lower() == "custom":
+            if custom_url:
+                target_sources = [{"Source": "Custom", "URL": custom_url, "Category": "General", "Location (If Applicable)": ""}]
+                logger.info(f"🔗 Using Custom URL: {custom_url}")
+            else:
+                logger.error("❌ Custom source selected but no URL provided.")
+                return
+        elif selected_source.lower() != "all":
+            # Filter by matching Source column (case-insensitive)
+            target_sources = [s for s in sources if s.get("Source", "").lower() == selected_source.lower()]
+            if not target_sources:
+                 logger.warning(f"⚠️ No sources found matching '{selected_source}'. Checking available sources...")
+                 # Optional: log available source names for debugging
+                 unique_sources = set(s.get("Source") for s in sources)
+                 logger.info(f"ℹ️  Available Sources: {', '.join(unique_sources)}")
+        else:
+            # "all" selected
+            target_sources = sources
+
+        if test_mode and len(target_sources) > 5:
+             logger.info("🧪 Test Mode: Limiting to first 5 sources.")
+             target_sources = target_sources[:5]
+
+        logger.info(f"✅ Loaded {len(target_sources)} sources to process.")
+        
+        # 3. Initialize Components
         extractor = IntelligenceExtractor() # Relies on Env Vars
         ingestor = SupabaseIngestor()     # Relies on Env Vars
         
         max_per_source = actor_input.get("maxArticlesPerSource", 5)
         
-        # 3. Execution Loop
+        # 4. Execution Loop
         async with NewsScraper(headless=True) as scraper:
-            # Limiting to first 5 sources for testing if in test mode
-            target_sources = sources[:5] if test_mode else sources
             
             for source in target_sources:
                 source_url = source.get("URL")
@@ -62,10 +90,10 @@ async def main():
                 
                 logger.info(f"🌍 Processing Source: {source.get('Source')} - {category} ({source_url})")
                 
-                # 3a. Crawl for Article Links
+                # 4a. Crawl for Article Links
                 article_links = await scraper.get_article_links(source_url, max_links=max_per_source)
                 
-                logger.info(f"🕷️ Source {source.get('Source')} yielded {len(article_links)} articles.")
+                logger.info(f"🕷️  Source {source.get('Source')} yielded {len(article_links)} articles.")
                 
                 # 3b. Process Each Article
                 for article_url in article_links:
