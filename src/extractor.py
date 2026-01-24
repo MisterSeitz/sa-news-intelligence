@@ -69,11 +69,13 @@ class IntelligenceExtractor:
 
         Extract the following fields into a valid JSON object:
         1. **sentiment**: "High Urgency", "Moderate Urgency", or "Low Urgency".
-        2. **category**: "Politics/Government", "Crime/Safety", "Environment", "Economy", "Social", "Other".
-        3. **summary**: A concise 1-paragraph summary.
-        4. **entities**: List of KEY people and organizations mentioned (max 5). Format: {{"name": "...", "type": "Person"|"Organization"}}
-        5. **incidents**: If a crime/disaster/protest occurred, describe it. Format: {{"type": "...", "date": "...", "description": "..."}} (or null).
-        6. **locations**: A list of specific physical locations mentioned (e.g. "Cape Town", "Sandton", "N1 Highway").
+        2. **category**: General category (e.g. "Politics", "Crime", "Business").
+        3. **niche_category**: ONE of ["Sports", "Politics", "Real Estate", "Gaming", "FoodTech", "Web3", "VC", "Cybersecurity", "Health", "Markets", "General"].
+        4. **summary**: A concise 1-paragraph summary.
+        5. **entities**: List of KEY people and organizations (max 8). 
+           Format: {{"name": "...", "type": "Politician"|"Athlete"|"Businessperson"|"Civilian"|"Organization"|"Company"|"GovernmentBody"}}
+        6. **incidents**: If a crime/disaster/protest occurred, describe it. Format: {{"type": "...", "date": "...", "description": "..."}} (or null).
+        7. **locations**: A list of specific physical locations mentioned (e.g. "Cape Town", "Sandton", "N1 Highway").
         
         JSON OUTPUT ONLY.
         """
@@ -117,8 +119,9 @@ class IntelligenceExtractor:
         return {
             "sentiment": "Moderate Urgency",
             "category": "Crime/Safety",
+            "niche_category": "General",
             "summary": "Mock summary of a reported incident.",
-            "entities": [{"name": "John Doe", "type": "Person"}],
+            "entities": [{"name": "John Doe", "type": "Civilian"}],
             "incidents": {"type": "Robbery", "date": "2025-01-01", "description": "Mock robbery"},
             "locations": ["Johannesburg"]
         }
