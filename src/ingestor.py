@@ -287,12 +287,35 @@ class SupabaseIngestor:
             if source_url and target_table in tables_with_hash:
                 data["dedup_hash"] = hashlib.md5(source_url.encode()).hexdigest()
 
-            # Dynamic conflict target
-            conflict_col = "canonical_url" if target_table == "entries" else "url"
+            # SPECIAL HANDLING FOR entries:
+            # The 'entries' table seems to lack a unique constraint on canonical_url in the DB schema,
+            # causing 42P10 error on upsert. We must do a manual check.
+            if target_table == "entries":
+                # Check existence via canonical_url
+                c_url = data.get("canonical_url")
+                if c_url:
+                    existing = self.supabase.schema(target_schema).table(target_table).select("id").eq("canonical_url", c_url).execute()
+                    if existing.data:
+                        # Update
+                        eid = existing.data[0]['id']
+                        self.supabase.schema(target_schema).table(target_table).update(data).eq("id", eid).execute()
+                        logger.info(f"Updated content in {target_schema}.{target_table} (ID: {eid})")
+                    else:
+                        # Insert
+                        self.supabase.schema(target_schema).table(target_table).insert(data).execute()
+                        logger.info(f"Ingested content to {target_schema}.{target_table} (New)")
+                else:
+                    logger.warning("Skipping entries ingestion: No canonical_url")
 
-            # For Real Estate/Gaming etc, we rely on 'url' unique constraint, but DO NOT send dedup_hash
-            self.supabase.schema(target_schema).table(target_table).upsert(data, on_conflict=conflict_col).execute()
-            logger.info(f"Ingested/Updated content in {target_schema}.{target_table} (URL: {raw.get('url')})")
+            else:
+                # For other tables (real_estate, gaming, etc), they have 'url' unique constraint.
+                # Use standard upsert.
+                conflict_col = "url" 
+                self.supabase.schema(target_schema).table(target_table).upsert(data, on_conflict=conflict_col).execute()
+                logger.info(f"Ingested/Updated content in {target_schema}.{target_table} (URL: {raw.get('url')})")
+
+        except Exception as e:
+            logger.error(f"Error ingesting content to {target_schema}.{target_table}: {e}")
         except Exception as e:
             logger.error(f"Error ingesting content to {target_schema}.{target_table}: {e}")
 
