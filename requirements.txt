@@ -6,3 +6,7 @@ pydantic
 feedparser
 openai
 ddgs
+playwright
+beautifulsoup4
+supabase
+lxml
