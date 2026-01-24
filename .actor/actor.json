@@ -6,7 +6,7 @@
   "version": "0.3",
   "dockerfile": "./Dockerfile",
   "entrypoint": "python -m src.main",
-  "input": "./INPUT_SCHEMA.json",
+  "input": "./input_schema.json",
   "defaultDataset": {
     "schema": "./dataset_schema.json"
   },
