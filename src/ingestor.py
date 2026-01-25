@@ -403,6 +403,7 @@ class SupabaseIngestor:
 
     async def _ingest_syndicate(self, data: Dict):
         try:
+            payload = {
                 "name": data.get("name"),
                 "type": data.get("type"), 
                 "primary_territory": data.get("primary_territory", "Unknown"), 
