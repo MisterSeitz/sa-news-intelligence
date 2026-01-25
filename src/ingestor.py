@@ -327,8 +327,17 @@ class SupabaseIngestor:
         if not date_str: return None
         try:
             from dateutil import parser
-            dt = parser.parse(date_str)
+            # Handle if it's already a datetime object (rare but possible)
+            if hasattr(date_str, 'isoformat'):
+                return date_str.isoformat()
+            
+            dt = parser.parse(str(date_str))
+            
+            # Additional Sanity Check: timestamps out of Postgres range or far future/past
+            if dt.year < 2020 or dt.year > 2030:
+                logger.warning(f"Date {dt} out of expected range (2020-2030). Using fallback.")
+                return None
+                
             return dt.isoformat()
         except:
-             # Basic check for YYYY encoded in string (e.g. "2024-2025") - treat as invalid
              return None

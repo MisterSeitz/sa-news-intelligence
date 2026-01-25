@@ -142,6 +142,11 @@ class NewsScraper:
                      # logger.debug(f"Skipping probable section page (depth {depth}): {link}")
                      continue
                 
+                # Exclude non-HTML extensions (PDFs are causing "Download starting" errors)
+                if any(link.lower().endswith(ext) for ext in [".pdf", ".jpg", ".png", ".jpeg", ".gif", ".zip", ".mp4", ".mp3", ".xml", ".rss"]):
+                    # logger.debug(f"Skipping binary file: {link}")
+                    continue
+
                 if link == start_url or link == start_url + "/": continue
                 
                 links.add(link)
