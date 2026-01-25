@@ -573,6 +573,9 @@ class SupabaseIngestor:
                 
             return dt.isoformat()
 
+        except:
+             return None
+
     async def upload_briefing_video(self, video_url: str, filename: str):
         """
         Downloads video from URL and uploads to Supabase Storage bucket 'news-briefings'.
