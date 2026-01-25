@@ -17,10 +17,10 @@ class BriefingEngine:
     - Storage upload via Supabase.
     """
 
-    def __init__(self, ingestor, extractor):
+    def __init__(self, ingestor, extractor, template_id: Optional[str] = None):
         self.ingestor = ingestor
         self.extractor = extractor
-        self.template_id = os.getenv("HEYGEN_TEMPLATE_ID") # User must set this
+        self.template_id = template_id or os.getenv("HEYGEN_TEMPLATE_ID")
         self.base_url = "https://api.heygen.com"
         
         # Check keys

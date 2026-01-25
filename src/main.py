@@ -106,7 +106,8 @@ async def main():
         # 3c. Check for Morning Briefing Mode
         if run_mode == "morning_briefing":
             if BriefingEngine:
-                briefing_engine = BriefingEngine(ingestor, extractor)
+                t_id = actor_input.get("heygenTemplateId")
+                briefing_engine = BriefingEngine(ingestor, extractor, template_id=t_id)
                 await briefing_engine.run()
                 return
             else:

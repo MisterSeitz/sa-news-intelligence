@@ -11,13 +11,15 @@
       "default": "news_scraper",
       "enum": [
         "news_scraper",
-        "crime_intelligence"
+        "crime_intelligence",
+        "morning_briefing"
       ],
       "enumTitles": [
         "📰 General News Scraper",
-        "🚨 Crime Intelligence Engine"
+        "🚨 Crime Intelligence Engine",
+        "🌅 Morning News Briefing"
       ],
-      "description": "Choose the primary task for this run. 'General News Scraper' crawls news sites. 'Crime Intelligence Engine' performs targeted searches using Brave API."
+      "description": "Choose the primary task for this run. 'General News Scraper' crawls news sites. 'Crime Intelligence Engine' performs targeted searches. 'Morning News Briefing' generates an AI video summary."
     },
     "source": {
       "title": "News Source (News Scraper Mode Only)",
@@ -88,6 +90,12 @@
       "type": "string",
       "editor": "textfield",
       "description": "Optional URL to POST high-priority incidents to (e.g. your Next.js API endpoint)."
+    },
+    "heygenTemplateId": {
+      "title": "HeyGen Template ID (Briefing Mode)",
+      "type": "string",
+      "editor": "textfield",
+      "description": "Optional: Override the HEYGEN_TEMPLATE_ID environment variable for the morning briefing."
     },
     "runTestMode": {
       "title": "Admin Test Mode (Bypasses ALL External API Costs)",
