@@ -146,6 +146,9 @@ class BriefingEngine:
              return None
              
         url = f"{self.base_url}/v2/template/{self.template_id}/generate"
+        logger.info(f"🎥 HeyGen API Call: {url}")
+        logger.info(f"🆔 Template ID: '{self.template_id}'")
+
         
         # Prepare payload based on script_data
         # We assume template has variables like 'script', 'title_text', etc.
