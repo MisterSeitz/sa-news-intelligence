@@ -129,7 +129,7 @@ class SupabaseIngestor:
                 "source_url": raw.get("url"),
                 "status": "reported",
                 "location": str(analysis.get("locations", [])),
-                "published_at": raw.get("published_date")
+                "published_at": self._parse_date(raw.get("published_date")) or "now()"
             }
             # source_url is unique in schema
             # source_url is unique in schema
