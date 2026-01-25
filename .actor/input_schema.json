@@ -97,6 +97,18 @@
       "editor": "textfield",
       "description": "Optional: Override the HEYGEN_TEMPLATE_ID environment variable for the morning briefing."
     },
+    "alibabaBaseUrl": {
+      "title": "Alibaba Base URL",
+      "type": "string",
+      "editor": "textfield",
+      "description": "Optional: Override the Alibaba Cloud endpoint (e.g. use 'https://dashscope.aliyuncs.com/compatible-mode/v1' for China-issued keys)."
+    },
+    "alibabaModel": {
+      "title": "Alibaba Model Name",
+      "type": "string",
+      "editor": "textfield",
+      "description": "Optional: Specify a specific model (e.g. 'qwen3-coder-plus') to force usage of that model ONLY."
+    },
     "runTestMode": {
       "title": "Admin Test Mode (Bypasses ALL External API Costs)",
       "type": "boolean",

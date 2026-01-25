@@ -33,9 +33,10 @@ class IntelligenceExtractor:
         "tngtech/r1t-chimera",                # Creative/Storytelling (Last resort)
     ]
 
-    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None, model: Optional[str] = None):
         # Detect Provider
         self.is_alibaba = False
+        self.model = model
         
         self.api_key = api_key
         self.base_url = base_url
