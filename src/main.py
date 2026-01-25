@@ -5,6 +5,11 @@ from apify import Actor
 from .scraper import NewsScraper
 from .extractor import IntelligenceExtractor
 from .ingestor import SupabaseIngestor
+try:
+    from .crime_engine import CrimeIntelligenceEngine
+except ImportError:
+    CrimeIntelligenceEngine = None
+    logger.warning("CrimeIntelligenceEngine module not found or failed to load.")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -78,6 +83,18 @@ async def main():
         extractor = IntelligenceExtractor() # Relies on Env Vars
         ingestor = SupabaseIngestor()     # Relies on Env Vars
         
+        # 3b. Check for Crime Intelligence Mode
+        if selected_source == "Crime Intelligence":
+            if CrimeIntelligenceEngine:
+                city_scope = actor_input.get("crimeCityScope", "major_cities")
+                crime_engine = CrimeIntelligenceEngine(ingestor, extractor)
+                await crime_engine.run(city_scope=city_scope)
+                logger.info("✅ Crime Intelligence Run Complete.")
+                return
+            else:
+                logger.error("❌ Crime Intelligence Engine unavailable.")
+                return
+
         max_per_source = actor_input.get("maxArticlesPerSource", 5)
         
         # 4. Execution Loop

@@ -115,7 +115,6 @@ class SupabaseIngestor:
         try:
             severity_map = {"High Urgency": 3, "Moderate Urgency": 2, "Low Urgency": 1}
             severity = severity_map.get(analysis.get("sentiment"), 1)
-            severity = severity_map.get(analysis.get("sentiment"), 1)
             
             # Safe Date Parsing
             occurred_at = self._parse_date(incident.get("date")) or raw.get("published_date") or "now()"
@@ -132,11 +131,45 @@ class SupabaseIngestor:
                 "published_at": self._parse_date(raw.get("published_date")) or "now()"
             }
             # source_url is unique in schema
-            # source_url is unique in schema
             self.supabase.schema("crime_intelligence").table("incidents").upsert(data, on_conflict="source_url").execute()
             logger.info(f"Ingested Incident: {data['title']}")
         except Exception as e:
             logger.error(f"Error ingesting incident: {e}")
+
+    async def _ingest_wanted(self, data: Dict):
+        try:
+            # Map fields to database columns
+            payload = {
+                "name": data.get("name"),
+                "crime_type": data.get("crime_type"),
+                "crime_circumstances": data.get("details") or data.get("crime_circumstances"),
+                "station": data.get("station"),
+                "region": data.get("region") or data.get("city"), # Brave might give city
+                "gender": data.get("gender"),
+                "source_url": data.get("url"),
+                "created_at": "now()"
+            }
+            # Upsert on source_url
+            self.supabase.schema("crime_intelligence").table("wanted_people").upsert(payload, on_conflict="source_url").execute()
+            logger.info(f"Ingested Wanted Person: {payload['name']}")
+        except Exception as e:
+            logger.error(f"Error ingesting wanted person: {e}")
+
+    async def _ingest_missing(self, data: Dict):
+        try:
+            payload = {
+                "name": data.get("name"),
+                "date_missing": self._parse_date(data.get("date_missing")),
+                "details": data.get("details"),
+                "region": data.get("region"),
+                "station": data.get("station"),
+                "source_url": data.get("url"),
+                "created_at": "now()"
+            }
+            self.supabase.schema("crime_intelligence").table("missing_people").upsert(payload, on_conflict="source_url").execute()
+            logger.info(f"Ingested Missing Person: {payload['name']}")
+        except Exception as e:
+            logger.error(f"Error ingesting missing person: {e}")
 
     async def _route_content(self, analysis: Dict, raw: Dict):
         niche = analysis.get("niche_category", "General")

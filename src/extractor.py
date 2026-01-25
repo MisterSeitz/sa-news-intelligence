@@ -160,6 +160,64 @@ class IntelligenceExtractor:
         logger.error(f"All models failed extraction. (Using Alibaba: {self.is_alibaba})")
         return {}
 
+    def analyze_crime_snippet(self, snippet: str, query_context: str) -> Dict[str, Any]:
+        """
+        Specialized extraction for short search result snippets (Brave Search).
+        Classifies into Incident, Wanted, Missing, or Syndicate.
+        """
+        if not self.client:
+            logger.error("Client not initialized.")
+            return {}
+
+        prompt = f"""
+        Analyze this search result snippet about '{query_context}' in South Africa.
+        Snippet: "{snippet}"
+
+        Determine if this describes a:
+        1. "Incident" (Crime happening)
+        2. "Wanted" (Police looking for suspect)
+        3. "Missing" (Missing person report)
+        4. "Syndicate" (Organized crime group info)
+        5. "Irrelevant"
+
+        JSON OUTPUT ONLY. Format:
+        {{
+            "type": "Incident" | "Wanted" | "Missing" | "Syndicate" | "Irrelevant",
+            "data": {{ ... specific fields ... }}
+        }}
+
+        Fields for "Incident": "description", "date" (YYYY-MM-DD or relative), "location" (City/Suburb), "type" (e.g. Hijacking), "sentiment" ("High/Moderate/Low Urgency")
+        Fields for "Wanted": "name", "crime_type", "station" (Police Station), "details", "gender"
+        Fields for "Missing": "name", "date_missing", "station", "details", "region"
+        Fields for "Syndicate": "name", "category", "modus_operandi"
+        """
+
+        # Reuse model logic (Simplified for snippet - use faster models if possible)
+        # For now, use same list logic
+        models_to_try = self.ALIBABA_MODEL_LIST if self.is_alibaba else self.FREE_MODEL_LIST
+        
+        for model in models_to_try:
+            try:
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": "You are a crime intelligence analyst."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.0
+                )
+                result_text = response.choices[0].message.content.strip()
+                if result_text.startswith("```json"): result_text = result_text[7:]
+                if result_text.endswith("```"): result_text = result_text[:-3]
+                
+                return json.loads(result_text.strip())
+            except Exception as e:
+                logger.warning(f"Snippet extraction failed on {model}: {e}")
+                continue
+        
+        return {}
+
     def _get_mock_data(self) -> Dict[str, Any]:
         return {
             "sentiment": "Moderate Urgency",

@@ -17,6 +17,7 @@
         "EWN",
         "Mail & Guardian",
         "Time Live",
+        "Crime Intelligence",
         "custom"
       ],
       "enumTitles": [
@@ -28,10 +29,26 @@
         "EWN",
         "Mail & Guardian",
         "Time Live",
+        "🚨 Crime Intelligence",
         "🔗 Custom URL"
       ],
       "default": "all",
       "description": "Select the news category to collect from. Articles will be fetched from different sources within this category first."
+    },
+    "crimeCityScope": {
+      "title": "Crime Intelligence: City Scope",
+      "type": "string",
+      "editor": "select",
+      "default": "major_cities",
+      "enum": [
+        "major_cities",
+        "all_cities"
+      ],
+      "enumTitles": [
+        "🏙️ Major Cities Only (Frequent)",
+        "🗺️ All 1620 Cities (Infrequent)"
+      ],
+      "description": "Scope of cities to scan for crime intelligence. 'Major Cities' checks key metros. 'All Cities' sweeps the entire database."
     },
     "customFeedUrl": {
       "title": "Custom RSS Feed URL",
