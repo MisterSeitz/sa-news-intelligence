@@ -242,7 +242,19 @@ class SupabaseIngestor:
              if raw.get("content"):
                  data["markdown_content"] = raw.get("content")
                  data["raw_context_source"] = raw.get("content")
-        
+
+        # SCHEMA FIX: Map 'source' vs 'source_feed'
+        # Some niche tables do NOT have a 'source' column, only 'source_feed'.
+        # Tables with ONLY source_feed: real_estate, gaming, web3, cybersecurity
+        if target_table in ["real_estate", "gaming", "web3", "cybersecurity"]:
+            data["source_feed"] = "SA News Scraper"
+            if "source" in data: del data["source"]
+            
+        # Tables with BOTH: foodtech, venture_capital, health_fitness, entries (source only)
+        # So for the dual ones, we can just add source_feed as alias
+        elif target_table in ["foodtech", "venture_capital", "health_fitness"]:
+            data["source_feed"] = "SA News Scraper"
+            
         # Handle Sentiment / Risk Level per table
         sentiment_text = analysis.get("sentiment", "Moderate Urgency")
         urgency_map = {"High Urgency": 3, "Moderate Urgency": 2, "Low Urgency": 1} # Simple int map
