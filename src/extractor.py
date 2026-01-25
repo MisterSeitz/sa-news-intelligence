@@ -178,7 +178,12 @@ class IntelligenceExtractor:
         2. "Wanted" (Police looking for suspect)
         3. "Missing" (Missing person report)
         4. "Syndicate" (Organized crime group info)
-        5. "Irrelevant"
+        5. "Irrelevant" (Not a crime, or NOT in South Africa)
+
+        CRITICAL LOCATION CHECK:
+        - If the event is NOT in South Africa, return "Irrelevant". 
+        - Watch for ambiguous names (e.g. "Beacon Bay" is SA, but "Beacon, NY" is USA. "East London" is SA, "London" is UK).
+        - Hints for SA Context: SAPS, Rand (currency), Provinces (Gauteng, KZN), Local slang/terms.
 
         JSON OUTPUT ONLY. Format:
         {{
@@ -186,7 +191,7 @@ class IntelligenceExtractor:
             "data": {{ ... specific fields ... }}
         }}
 
-        Fields for "Incident": "description", "date" (YYYY-MM-DD or relative), "location" (City/Suburb), "type" (e.g. Hijacking), "sentiment" ("High/Moderate/Low Urgency")
+        Fields for "Incident": "description", "date" (YYYY-MM-DD or relative), "location" (City/Suburb), "type" (e.g. Hijacking, Murder, Rape, Fraud, Gang Violence), "sentiment" ("High/Moderate/Low Urgency")
         Fields for "Wanted": "name", "crime_type", "station" (Police Station), "details", "gender"
         Fields for "Missing": "name", "date_missing", "station", "details", "region"
         Fields for "Syndicate": "name", "category", "modus_operandi"

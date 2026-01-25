@@ -132,14 +132,23 @@ class CrimeIntelligenceEngine:
         return [{"name": c} for c in major_cities_list]
 
     async def _scan_incidents(self, city: str):
-        queries = [
-            f"crime incident {city} today",
-            f"shooting {city} news last 24 hours",
-            f"hijacking {city} report",
-            f"protest action {city} live"
+        # Expanded Query Strategy for Robustness
+        base_keywords = [
+            "crime incident",
+            "murder killing homicide",
+            "rape sexual assault GBV",
+            "armed robbery hijacking",
+            "cash in transit heist CIT",
+            "gang violence shooting",
+            "fraud scam alert",
+            "extortion construction mafia",
+            "protest unrest strike"
         ]
         
-        for q in queries:
+        for keyword in base_keywords:
+            # Enforce "South Africa" context to avoid international ambiguity (e.g. Beacon Bay vs Beacon NY)
+            q = f"{keyword} {city} South Africa news"
+            
             results = await self.brave.search(q, count=5)
             logger.info(f"🔎 found {len(results)} results for query: '{q}'")
             for res in results:
@@ -170,8 +179,9 @@ class CrimeIntelligenceEngine:
 
     async def _scan_people(self, city: str):
         queries = [
-            f"wanted suspects {city} police",
-            f"missing person {city} saps"
+            f"wanted suspects {city} South Africa police",
+            f"missing person {city} South Africa saps",
+            f"most wanted criminals {city} South Africa"
         ]
         
         for q in queries:
