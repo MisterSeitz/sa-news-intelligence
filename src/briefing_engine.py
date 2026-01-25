@@ -198,9 +198,38 @@ class BriefingEngine:
                 video_id = data.get("data", {}).get("video_id")
                 logger.info(f"🎬 Video Generation Started: ID {video_id}")
                 return video_id
+                return None
+            elif resp.status_code == 404:
+                logger.error(f"❌ Template Not Found (404). The ID '{self.template_id}' is invalid or not in this account.")
+                await self._debug_list_available_templates(headers)
+                return None
             else:
                 logger.error(f"HeyGen API Error ({resp.status_code}): {resp.text}")
                 return None
+
+    async def _debug_list_available_templates(self, headers: Dict):
+        """
+        Helper to list available templates to help user debug 404s.
+        """
+        try:
+            logger.info("🔍 Attempting to list available V2 templates...")
+            url = f"{self.base_url}/v2/templates"
+            async with httpx.AsyncClient() as client:
+                # Try fetching first page
+                resp = await client.get(url, headers=headers, params={"limit": 10})
+                if resp.status_code == 200:
+                    data = resp.json().get("data", {}).get("templates", [])
+                    if not data:
+                        logger.warning("⚠️ No templates found in this HeyGen account.")
+                        return
+                    
+                    logger.info("✅ Available Templates (First 10):")
+                    for t in data:
+                        logger.info(f"   - Name: {t.get('name')} | ID: {t.get('template_id')}")
+                else:
+                    logger.warning(f"Could not list templates: {resp.status_code} - {resp.text}")
+        except Exception as e:
+            logger.error(f"Debug listing failed: {e}")
 
     async def _poll_heygen_status(self, video_id: str) -> str:
         """
