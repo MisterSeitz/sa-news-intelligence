@@ -2,6 +2,7 @@ import os
 import logging
 from typing import Dict, Any, List, Optional
 import httpx
+from datetime import datetime
 from supabase import create_client, Client
 from postgrest.base_request_builder import APIResponse
 
@@ -400,6 +401,8 @@ class SupabaseIngestor:
         except Exception as e:
             logger.error(f"Failed to route content to {target_schema}.{target_table}: {e}")
 
+    async def _ingest_syndicate(self, data: Dict):
+        try:
             payload = {
                 "name": data.get("name"),
                 "type": data.get("type"), # Schema uses 'type' not 'category' -> CHECK SCHEMA.MD: id, name, type...
