@@ -231,10 +231,26 @@ class NewsScraper:
         else:
              text_content = "\n\n".join(valid_paragraphs)
 
+        # 4. Image Extraction
+        image_url = None
+        og_image = soup.find("meta", property="og:image")
+        if og_image:
+            image_url = og_image.get("content")
+        
+        if not image_url:
+            # Fallback: Find first large image in article body
+            if article_body:
+                img = article_body.find("img")
+                if img:
+                    src = img.get("src") or img.get("data-src")
+                    if src and src.startswith("http"): # Basic filter
+                        image_url = src
+
         return {
             "url": url,
             "title": title,
             "published_date": published_date,
+            "image_url": image_url,
             "content": text_content,
             "raw_html_snippet": str(article_body)[:5000] # store truncated raw html for debugging/AI
         }

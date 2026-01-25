@@ -133,7 +133,9 @@ class SupabaseIngestor:
                 "source_url": raw.get("url"),
                 "status": "reported",
                 "location": str(analysis.get("locations", [])),
-                "published_at": self._parse_date(raw.get("published_date")) or "now()"
+                "location": str(analysis.get("locations", [])),
+                "published_at": self._parse_date(raw.get("published_date")) or "now()",
+                "image_url": raw.get("image_url")
             }
             # source_url is unique in schema
             self.supabase.schema("crime_intelligence").table("incidents").upsert(data, on_conflict="source_url").execute()
@@ -215,13 +217,21 @@ class SupabaseIngestor:
             "published": raw.get("published_date"),
             "category": analysis.get("category"),
             "ai_summary": analysis.get("summary"),
-            "category": analysis.get("category"),
-            "ai_summary": analysis.get("summary"),
             # 'sentiment' is NOT common across all tables. Removed from default.
             # Some tables have 'source_feed', others 'source'
             "source": "SA News Scraper",
             "created_at": "now()"
         }
+
+        # Add Image URL if available (handled differently per table, but good to have in base if possible)
+        # Note: 'entries' schema has data jsonb, others might have image_url column.
+        image_url = raw.get("image_url")
+        if image_url:
+             # If table has image_url column (check schema.md)
+             # election_news: yes
+             # news (sports): no, uses structured_data? or just add to json? 
+             # entries: no, add to data jsonb
+             pass
 
         # Niche Specific Adjustments
         if target_table == "news" and target_schema == "sports_intelligence":
@@ -249,7 +259,8 @@ class SupabaseIngestor:
              # Move extras to structured_data
              data["structured_data"] = {
                  "sentiment_label": analysis.get("sentiment"),
-                 "original_source": "SA News Scraper"
+                 "original_source": "SA News Scraper",
+                 "image_url": image_url
              }
              if "sentiment" in data: del data["sentiment"]
              if "source" in data: del data["source"]
@@ -270,6 +281,11 @@ class SupabaseIngestor:
             # Map content -> content (for entries)
             if raw.get("content"):
                 data["content"] = raw.get("content")
+
+            # Entries: Add image_url to data jsonb
+            if image_url:
+                 data["data"] = {"image_url": image_url}
+
 
         # Niche tables often use 'raw_context_source' or 'markdown_content'
         if target_table in ["real_estate", "gaming", "web3", "cybersecurity", "health_fitness"]:
@@ -451,7 +467,8 @@ class SupabaseIngestor:
                     "occurred_at": self._parse_date(inc.get("date")) or "now()",
                     "status": "verified",
                     "published_at": raw_meta.get("published_date") or "now()",
-                    "full_text": raw_meta.get("full_text", "")  # Save full scraped text
+                    "full_text": raw_meta.get("full_text", ""),  # Save full scraped text
+                    "image_url": raw_meta.get("image_url")
                 }
                 self.supabase.schema("crime_intelligence").table("incidents").upsert(payload, on_conflict="source_url").execute()
                 logger.info(f"🔫 Deep Ingested Incident: {payload['type']} at {payload['location']}")
