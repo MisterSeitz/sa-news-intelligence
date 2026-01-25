@@ -67,6 +67,12 @@ class IntelligenceExtractor:
             logger.error(f"Failed to initialize OpenAI client: {e}")
             self.client = None
 
+    def _get_models(self) -> List[str]:
+        """Returns the list of models to try, respecting overrides."""
+        if self.model:
+            return [self.model]
+        return self.ALIBABA_MODEL_LIST if self.is_alibaba else self.FREE_MODEL_LIST
+
     def analyze(self, article_data: Dict[str, Any], test_mode: bool = False) -> Dict[str, Any]:
         """
         Analyzes the article content to extract entities, incidents, and classification.
@@ -110,16 +116,15 @@ class IntelligenceExtractor:
         """
 
         # Determine model list
-        custom_model = os.getenv("LLM_MODEL")
-        if custom_model:
-             models_to_try = [custom_model]
-             logger.info(f"Using custom model from env: {custom_model}")
-        elif self.is_alibaba:
-             models_to_try = self.ALIBABA_MODEL_LIST
-             logger.info(f"Using Alibaba Cloud fallback list.")
-        else:
-             models_to_try = self.FREE_MODEL_LIST
-             logger.info(f"Using OpenRouter free fallback list.")
+        # Determine model list
+        models_to_try = self._get_models()
+        if not models_to_try:
+            # Fallback for LLM_MODEL env var if not in _get_models (Optional legacy support)
+            custom_model = os.getenv("LLM_MODEL")
+            if custom_model:
+                 models_to_try = [custom_model]
+            else:
+                 logger.info("Using fallback defaults from _get_models")
 
         for model in models_to_try:
             try:
@@ -334,10 +339,9 @@ class IntelligenceExtractor:
         }}
         """
 
-        if self.model:
-             models_to_try = [self.model]
-        else:
-             models_to_try = self.ALIBABA_MODEL_LIST if self.is_alibaba else self.FREE_MODEL_LIST
+        """
+
+        models_to_try = self._get_models()
         
         for model in models_to_try:
             try:
