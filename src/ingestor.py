@@ -400,19 +400,22 @@ class SupabaseIngestor:
         except Exception as e:
             logger.error(f"Failed to route content to {target_schema}.{target_table}: {e}")
 
-    async def _ingest_syndicate(self, data: Dict):
-        try:
             payload = {
                 "name": data.get("name"),
-                "category": data.get("type"),
-                "modus_operandi": data.get("details"),
-                "active": True,
+                "type": data.get("type"), # Schema uses 'type' not 'category' -> CHECK SCHEMA.MD: id, name, type...
+                # Wait, schema.md says 'type'. My code had "category": data.get("type").
+                # Let's check schema.md line 180: id, name, type.
+                # So key should be 'type'.
+                "primary_territory": data.get("primary_territory", "Unknown"), # Schema: primary_territory
+                "modus_operandi": data.get("details"), # Schema says risk_score, metadata, etc. No modus_operandi column in syndicates?
+                # Schema line 180: id, name, type, primary_territory, estimated_members, risk_score, metadata, operations_territory_geom.
+                # NO 'modus_operandi' column.
+                # Put details in metadata.
+                "metadata": {"details": data.get("details")},
                 "created_at": "now()"
             }
-            # Assuming 'name' unique constraint or just insert. Schema snippet didn't show unique on name, but usually is.
-            # Safe to try upsert on name if it exists, or just insert and catch error.
-            # Using specific upsert on name if possible?
-            # Let's assume unique name for now.
+            # Remove 'active' as it doesn't exist
+            
             res = self.supabase.schema("crime_intelligence").table("syndicates").select("id").eq("name", payload["name"]).execute()
             if res.data:
                  logger.info(f"Syndicate {payload['name']} already exists.")
@@ -506,15 +509,10 @@ class SupabaseIngestor:
                      # Wanted
                      p_data = {
                          "name": p.get("name"),
-                         "crime_type": p.get("details"), # simplistic mapping
-                         "source_url": source_url + f"#{p.get('name')}", # Artificial unique URL for person?
-                         # Schema for wanted_people source_url is unique.
-                         # We need to be careful. The person might be referenced in multiple URLs.
-                         # Upsert based on Source URL of the report? No, that links the person to this report.
-                         # We might need to skip source_url unique enforcement if the person table implies distinct records per report?
-                         # Actually, checking schema: `source_url (unique)`. This implies 1 wanted person record per source URL.
-                         # So `source_url + #name` is a decent hack.
-                         "details": p.get("details")
+                         "crime_type": p.get("crime_type", "Wanted Suspect"),
+                         "source_url": source_url + f"#{p.get('name')}", 
+                         # Schema: crime_circumstances
+                         "crime_circumstances": p.get("details")
                      }
                      self.supabase.schema("crime_intelligence").table("wanted_people").upsert(p_data, on_conflict="source_url").execute()
                      logger.info(f"🚔 Deep Ingested Wanted: {p.get('name')}")
@@ -526,6 +524,13 @@ class SupabaseIngestor:
                          "details": p.get("details"),
                          "source_url": source_url + f"#{p.get('name')}"
                      }
+                     # Schema for missing_people: id, saps_id, name, case_ref, station, date_missing, details...
+                     # It DOES have 'details'. So this block might be fine, but 'wanted_people' failed.
+                     # Wait, let's verify Schema for missing_people in lines 170-171 of view_file output:
+                     # "id, saps_id, name, case_ref, station, date_missing (date), details, region..."
+                     # So Missing People has 'details'. Wanted People has 'crime_circumstances'.
+                     # The error in log was: "Could not find the 'details' column of 'wanted_people'" -> Correct, I fixed that above.
+                     # Did 'missing_people' fail? Log didn't show it, but safe to keep checking.
                      self.supabase.schema("crime_intelligence").table("missing_people").upsert(m_data, on_conflict="source_url").execute()
                      logger.info(f"🆘 Deep Ingested Missing: {p.get('name')}")
             except Exception as e:
