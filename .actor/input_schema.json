@@ -1,6 +1,6 @@
 {
   "title": "📰 World News Intelligence Pipeline",
-  "description": "Fetch and analyze world news from top global sources using a reliable single-stage AI analysis pipeline with DuckDuckGo grounding, prioritizing source diversity.",
+  "description": "Fetch and analyze world news from top global sources using a reliable single-stage AI analysis pipeline, prioritizing source diversity.",
   "schemaVersion": 1,
   "type": "object",
   "properties": {
@@ -83,56 +83,15 @@
       "description": "Global limit on total articles fetches across all sources.",
       "default": 50
     },
-    "region": {
-      "title": "Search Region (DuckDuckGo)",
-      "type": "string",
-      "editor": "select",
-      "description": "Region to limit search results by (e.g., 'us-en' for US, 'wt-wt' for World).",
-      "default": "wt-wt",
-      "enum": [
-        "wt-wt",
-        "us-en",
-        "uk-en",
-        "au-en",
-        "de-de",
-        "fr-fr"
-      ],
-      "enumTitles": [
-        "World (Default)",
-        "US (English)",
-        "UK (English)",
-        "Australia (English)",
-        "Germany (German)",
-        "France (French)"
-      ]
-    },
-    "timeLimit": {
-      "title": "Time Limit (DuckDuckGo)",
-      "type": "string",
-      "editor": "select",
-      "description": "Limit search results by time.",
-      "default": "w",
-      "enum": [
-        "any",
-        "d",
-        "w",
-        "m"
-      ],
-      "enumTitles": [
-        "Any Time",
-        "Past Day",
-        "Past Week",
-        "Past Month"
-      ]
-    },
     "runTestMode": {
       "title": "Admin Test Mode (Bypasses ALL External API Costs)",
       "type": "boolean",
-      "description": "Setting this to true bypasses the DuckDuckGo Search and the OpenAI LLM call, enabling zero-cost testing of the workflow. **DO NOT ENABLE IN PRODUCTION.**",
+      "description": "Setting this to true bypasses external API calls (Brave/OpenAI), enabling zero-cost testing. **DO NOT ENABLE IN PRODUCTION.**",
       "default": false
     }
   },
   "required": [
+    "runMode",
     "source"
   ]
 }
