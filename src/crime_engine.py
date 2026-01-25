@@ -161,7 +161,8 @@ class CrimeIntelligenceEngine:
         raw_meta = {
             "title": title,
             "url": url,
-            "published_date": date_str
+            "published_date": date_str,
+            "full_text": text
         }
         
         await self.ingestor.ingest_full_intelligence(deep_data, raw_meta)

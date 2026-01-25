@@ -79,8 +79,9 @@ async def main():
              target_sources = target_sources[:5]
 
         # 3. Initialize Components
+        webhook_url = actor_input.get("webhookUrl")
         extractor = IntelligenceExtractor() # Relies on Env Vars
-        ingestor = SupabaseIngestor()     # Relies on Env Vars
+        ingestor = SupabaseIngestor(webhook_url=webhook_url)     # Relies on Env Vars
         
         # 3b. Check for Crime Intelligence Mode
         if run_mode == "crime_intelligence":

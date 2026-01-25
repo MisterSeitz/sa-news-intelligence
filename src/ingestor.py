@@ -1,6 +1,7 @@
 import os
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+import httpx
 from supabase import create_client, Client
 from postgrest.base_request_builder import APIResponse
 
@@ -12,9 +13,12 @@ class SupabaseIngestor:
     Ingests analyzed news data into Visita Intelligence Supabase tables.
     """
 
-    def __init__(self, url: str = None, key: str = None):
+    """
+
+    def __init__(self, url: str = None, key: str = None, webhook_url: str = None):
         self.url = url or os.getenv("SUPABASE_URL")
         self.key = key or os.getenv("SUPABASE_SERVICE_ROLE_KEY") # Prefer Service Role for ingestion
+        self.webhook_url = webhook_url
         
         if not self.url or not self.key:
             logger.error("Supabase credentials missing. Ingestion will fail.")
@@ -22,6 +26,8 @@ class SupabaseIngestor:
         else:
             try:
                 self.supabase: Client = create_client(self.url, self.key)
+                if self.webhook_url:
+                     logger.info(f"🔔 Real-Time Webhook enabled: {self.webhook_url}")
             except Exception as e:
                 logger.error(f"Failed to connect to Supabase: {e}")
                 self.supabase = None
@@ -408,6 +414,20 @@ class SupabaseIngestor:
 
         source_url = raw_meta.get("url")
 
+        # 0. Archive Raw Intelligence (Source + AI Analysis)
+        try:
+             self.supabase.schema("crime_intelligence").table("structured_crime_intelligence").insert({
+                 "incident_type": "deep_analysis_dump",
+                 "location": "South Africa", 
+                 "severity": "Info",
+                 "source": source_url,
+                 "incident_date": "now()",
+                 "data": analysis # The full JSON
+             }).execute()
+             logger.info(f"💾 Archived Deep Intelligence analysis for {source_url}")
+        except Exception as e:
+             logger.error(f"Failed to archive raw intelligence: {e}")
+
         # 1. Ingest Incidents
         for inc in analysis.get("incidents", []):
             try:
@@ -428,11 +448,30 @@ class SupabaseIngestor:
                     "location": inc.get("location"),
                     "occurred_at": self._parse_date(inc.get("date")) or "now()",
                     "status": "verified",
-                    "published_at": raw_meta.get("published_date") or "now()"
+                    "published_at": raw_meta.get("published_date") or "now()",
+                    "full_text": raw_meta.get("full_text", "")  # Save full scraped text
                 }
                 self.supabase.schema("crime_intelligence").table("incidents").upsert(payload, on_conflict="source_url").execute()
                 logger.info(f"🔫 Deep Ingested Incident: {payload['type']} at {payload['location']}")
                 
+                # TRIGGER REAL-TIME WEBHOOK FOR HIGH SEVERITY
+                sev = inc.get("severity", 1)
+                # Handle int or string severity (High/3)
+                is_high = False
+                if isinstance(sev, int) and sev >= 3: is_high = True
+                if isinstance(sev, str) and sev.lower() in ["high", "critical", "urgent"]: is_high = True
+                
+                if is_high:
+                     await self._trigger_webhook({
+                         "event": "high_severity_incident",
+                         "title": payload["title"],
+                         "type": payload["type"],
+                         "location": payload["location"],
+                         "description": payload["description"],
+                         "source_url": source_url,
+                         "timestamp": datetime.now().isoformat()
+                     })
+
                 # Check 1st one only for now to avoid constraint error
                 break 
             except Exception as e:
@@ -477,6 +516,21 @@ class SupabaseIngestor:
         for o in analysis.get("organizations", []):
             if o.get("type") in ["Syndicate", "Gang"]:
                 await self._ingest_syndicate(o)
+
+    async def _trigger_webhook(self, payload: Dict):
+        """
+        Sends high-priority events to the external webhook (Next.js/Slack).
+        """
+        if not self.webhook_url: return
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(self.webhook_url, json=payload, timeout=5.0)
+                if resp.status_code in [200, 201]: 
+                    logger.info(f"🔔 Webhook Triggered for: {payload.get('title')}")
+                else:
+                    logger.warning(f"Webhook failed ({resp.status_code}): {resp.text}")
+        except Exception as e:
+            logger.error(f"Webhook Trigger Error: {e}")
 
     def _parse_date(self, date_str: str) -> str:
         """

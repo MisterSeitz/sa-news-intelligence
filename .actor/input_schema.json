@@ -83,6 +83,12 @@
       "description": "Global limit on total articles fetches across all sources.",
       "default": 50
     },
+    "webhookUrl": {
+      "title": "Real-Time Webhook URL",
+      "type": "string",
+      "editor": "textfield",
+      "description": "Optional URL to POST high-priority incidents to (e.g. your Next.js API endpoint)."
+    },
     "runTestMode": {
       "title": "Admin Test Mode (Bypasses ALL External API Costs)",
       "type": "boolean",
