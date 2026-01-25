@@ -84,6 +84,8 @@ async def main():
              logger.info("🧪 Test Mode: Limiting to first 5 sources.")
              target_sources = target_sources[:5]
 
+        ali_url = actor_input.get("alibabaBaseUrl")
+        ali_model = actor_input.get("alibabaModel")
         extractor = IntelligenceExtractor(base_url=ali_url, model=ali_model)
         
         webhook_url = actor_input.get("webhookUrl")
