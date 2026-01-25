@@ -403,18 +403,10 @@ class SupabaseIngestor:
 
     async def _ingest_syndicate(self, data: Dict):
         try:
-            payload = {
                 "name": data.get("name"),
-                "type": data.get("type"), # Schema uses 'type' not 'category' -> CHECK SCHEMA.MD: id, name, type...
-                # Wait, schema.md says 'type'. My code had "category": data.get("type").
-                # Let's check schema.md line 180: id, name, type.
-                # So key should be 'type'.
-                "primary_territory": data.get("primary_territory", "Unknown"), # Schema: primary_territory
-                "modus_operandi": data.get("details"), # Schema says risk_score, metadata, etc. No modus_operandi column in syndicates?
-                # Schema line 180: id, name, type, primary_territory, estimated_members, risk_score, metadata, operations_territory_geom.
-                # NO 'modus_operandi' column.
-                # Put details in metadata.
-                "metadata": {"details": data.get("details")},
+                "type": data.get("type"), 
+                "primary_territory": data.get("primary_territory", "Unknown"), 
+                "metadata": {"details": data.get("details"), "modus_operandi": data.get("details")},
                 "created_at": "now()"
             }
             # Remove 'active' as it doesn't exist
@@ -472,7 +464,7 @@ class SupabaseIngestor:
                     "location": inc.get("location"),
                     "occurred_at": self._parse_date(inc.get("date")) or "now()",
                     "status": "verified",
-                    "published_at": raw_meta.get("published_date") or "now()",
+                    "published_at": self._parse_date(raw_meta.get("published_date")) or "now()",
                     "full_text": raw_meta.get("full_text", ""),  # Save full scraped text
                     "image_url": raw_meta.get("image_url")
                 }
