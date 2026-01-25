@@ -15,11 +15,10 @@ class IntelligenceExtractor:
 
     # Alibaba Cloud Qwen models (Prioritized by capability then cost)
     ALIBABA_MODEL_LIST = [
-        "qwen-flash",          # Seamless thinking/non-thinking, 1M context
-        "qwen3-coder-flash",   # Strong code/JSON geneation
-        "qwen-mt-flash",       # Fast, cost-effective
-        "qwen-mt-plus",        # High quality fallback
-        "qwen-mt-lite",        # Cheapest fallback
+        "qwen-plus",           # Good balance of speed and quality
+        "qwen-turbo",          # Fast, cost-effective
+        "qwen-max",            # High intelligence
+        "qwen-long",           # Long context fallback
     ]
 
     # Free model strategy list (Prioritized by user preference)
