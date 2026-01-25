@@ -381,6 +381,9 @@ class SupabaseIngestor:
                 self.supabase.schema(target_schema).table(target_table).upsert(data, on_conflict=conflict_col).execute()
                 logger.info(f"{icon} Ingested/Updated content in {target_schema}.{target_table} (URL: {raw.get('url')})")
 
+        except Exception as e:
+            logger.error(f"Failed to route content to {target_schema}.{target_table}: {e}")
+
     async def _ingest_syndicate(self, data: Dict):
         try:
             payload = {
