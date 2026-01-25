@@ -58,10 +58,21 @@ class BriefingEngine:
 
         # 2. Generate Script
         logger.info(f"📝 Generating script from {len(stories)} stories...")
+        # Note: Extractor prompt MUST be tuned for < 150 words total to ensure < 60s duration (1 credit)
         script_data = self.extractor.generate_briefing_script(stories)
         if not script_data:
             logger.error("Failed to generate script.")
             return
+
+        # Credit Guard: Estimate duration (roughly 150 words per minute)
+        total_text = f"{script_data.get('slide_1', '')} {script_data.get('slide_2', '')} {script_data.get('slide_3', '')}"
+        word_count = len(total_text.split())
+        est_duration = word_count / 150 * 60
+        logger.info(f"Credit Guard 🛡️: Approx {word_count} words / ~{int(est_duration)}s. Target: <60s (1 Credit).")
+        
+        if est_duration > 58: # Safety buffer
+            logger.warning("⚠️ Script too long for 1 credit! functional requirement. Truncating slightly enforced by prompt is better, but logging for now.")
+            # In production, we might want to re-generate or aggressively truncate here.
 
         # 3. Generate Video
         logger.info("🎥 Requesting HeyGen Video...")
@@ -79,7 +90,33 @@ class BriefingEngine:
         logger.info(f"📤 Uploading {filename} to Supabase Storage...")
         await self.ingestor.upload_briefing_video(video_url, filename)
         
+        # 6. Log to DB Table
+        # Store permanent public URL (assuming bucket is public)
+        # Or rely on client to build it. Let's store the relative path or full Supabase Storage URL.
+        # Ideally, we get the public URL from ingestion.
+        # storage_url = f"{self.ingestor.supabase_url}/storage/v1/object/public/news-briefings/{filename}"
+        # We'll calculate it or ask ingestor. 
+        # Making a simple assumption based on standard supabase paths for now.
+        public_url = f"{self.ingestor.url}/storage/v1/object/public/news-briefings/{filename}"
+        
+        await self._log_briefing_to_db(public_url, total_text, int(est_duration))
+
         logger.info("✅ Morning Briefing Complete.")
+
+    async def _log_briefing_to_db(self, video_url: str, script: str, duration: int):
+        try:
+            data = {
+                "video_url": video_url,
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "script_content": script,
+                "duration_seconds": duration,
+                "created_at": "now()"
+            }
+            # Upsert on date to prevent duplicates
+            self.ingestor.supabase.schema("ai_intelligence").table("daily_briefings").upsert(data, on_conflict="date").execute()
+            logger.info("📅 Logged briefing to ai_intelligence.daily_briefings")
+        except Exception as e:
+            logger.error(f"Failed to log briefing to DB: {e}")
 
     async def _fetch_top_stories(self, limit: int = 3) -> List[Dict]:
         """
@@ -87,14 +124,7 @@ class BriefingEngine:
         Prioritizes 'High Urgency' and recent items.
         """
         try:
-            # We want High Urgency first, then recent
-            # Assuming 'sentiment_score' or 'risk_level' maps to urgency
-            # news_unified_view columns: id, title, summary, category, sentiment
-            
-            # Simple query: last 24h, sorted by creation? 
-            # Or just take latest 5 regardless of time if volume is low?
-            # Let's try published_at desc.
-            
+            # Fetch stories created in the last 24 hours to ensure freshness
             res = self.ingestor.supabase.table("news_unified_view")\
                 .select("title, summary, category, source_url, content")\
                 .order("published_at", desc=True)\
