@@ -13,7 +13,6 @@ class SupabaseIngestor:
     Ingests analyzed news data into Visita Intelligence Supabase tables.
     """
 
-    """
 
     def __init__(self, url: str = None, key: str = None, webhook_url: str = None):
         self.url = url or os.getenv("SUPABASE_URL")
