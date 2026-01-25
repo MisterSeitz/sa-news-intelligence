@@ -339,7 +339,7 @@ class IntelligenceExtractor:
         }}
         """
 
-        """
+
 
         models_to_try = self._get_models()
         
