@@ -571,5 +571,38 @@ class SupabaseIngestor:
                 return None
                 
             return dt.isoformat()
-        except:
-             return None
+
+    async def upload_briefing_video(self, video_url: str, filename: str):
+        """
+        Downloads video from URL and uploads to Supabase Storage bucket 'news-briefings'.
+        """
+        try:
+            # 1. Download Video
+            logger.info(f"Downloading video from {video_url}...")
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(video_url, timeout=60.0)
+                if resp.status_code != 200:
+                     logger.error(f"Failed to download video: {resp.status_code}")
+                     return
+
+                video_bytes = resp.content
+            
+            # 2. Upload to Supabase Storage
+            # Requires 'news-briefings' bucket to exist and be public or have policy.
+            bucket = "news-briefings"
+            path = f"{filename}"
+            
+            logger.info(f"Uploading {len(video_bytes)} bytes to {bucket}/{path}...")
+            
+            # Supabase Storage Upload
+            res = self.supabase.storage.from_(bucket).upload(
+                file=video_bytes,
+                path=path,
+                file_options={"content-type": "video/mp4", "upsert": "true"}
+            )
+            
+            logger.info(f"✅ Video Uploaded Successfully: {path}")
+
+        except Exception as e:
+            logger.error(f"Failed to upload briefing video: {e}")
+

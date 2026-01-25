@@ -301,3 +301,59 @@ class IntelligenceExtractor:
             "incidents": {"type": "Robbery", "date": "2025-01-01", "description": "Mock robbery"},
             "locations": ["Johannesburg"]
         }
+
+    def generate_briefing_script(self, stories: List[Dict]) -> Dict[str, Any]:
+        """
+        Generates a 30-60 second morning briefing script from a list of stories.
+        """
+        if not self.client or not stories: return {}
+        
+        # Prepare context
+        stories_text = ""
+        for i, s in enumerate(stories):
+            stories_text += f"{i+1}. {s.get('title')} ({s.get('category')}): {s.get('summary')}\n"
+            
+        prompt = f"""
+        You are a professional news anchor for 'Visita South Africa'.
+        Write a concise, engaging Morning News Briefing script based on these top stories:
+        
+        {stories_text}
+        
+        CRITICAL CONSTRAINTS:
+        1. **Time Limit**: The video MUST be under 60 seconds. Total word count MUST be under 120 words.
+        2. **Structure**: Split into exactly 3 slides.
+            - **Slide 1 (Intro + Top Story)**: "Good morning." + Brief summary of Story 1.
+            - **Slide 2 (Rapid Fire)**: Very quick 1-sentence mentions of Story 2 and Story 3.
+            - **Slide 3 (Conclusion)**: "That's your briefing. Stay safe."
+            
+        OUTPUT JSON ONLY:
+        {{
+            "slide_1": "Script for slide 1...",
+            "slide_2": "Script for slide 2...",
+            "slide_3": "Script for slide 3..."
+        }}
+        """
+
+        models_to_try = self.ALIBABA_MODEL_LIST if self.is_alibaba else self.FREE_MODEL_LIST
+        
+        for model in models_to_try:
+            try:
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": "You are a professional news script writer."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.7
+                )
+                result_text = response.choices[0].message.content.strip()
+                if result_text.startswith("```json"): result_text = result_text[7:]
+                if result_text.endswith("```"): result_text = result_text[:-3]
+                
+                return json.loads(result_text)
+            except Exception as e:
+                logger.warning(f"Script generation failed on {model}: {e}")
+                
+        return {}
+

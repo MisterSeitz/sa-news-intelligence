@@ -11,6 +11,12 @@ except ImportError:
     CrimeIntelligenceEngine = None
     logger.warning("CrimeIntelligenceEngine module not found or failed to load.")
 
+try:
+    from .briefing_engine import BriefingEngine
+except ImportError:
+    BriefingEngine = None
+    logger.warning("BriefingEngine module not found or failed to load.")
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -95,6 +101,18 @@ async def main():
                 logger.error("❌ Crime Intelligence Engine unavailable.")
                 return
         
+
+        
+        # 3c. Check for Morning Briefing Mode
+        if run_mode == "morning_briefing":
+            if BriefingEngine:
+                briefing_engine = BriefingEngine(ingestor, extractor)
+                await briefing_engine.run()
+                return
+            else:
+                logger.error("❌ BriefingEngine unavailable.")
+                return
+
         logger.info(f"✅ Loaded {len(target_sources)} sources to process.")
 
         max_per_source = actor_input.get("maxArticlesPerSource", 5)
