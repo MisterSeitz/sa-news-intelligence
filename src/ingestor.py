@@ -215,6 +215,7 @@ class SupabaseIngestor:
              }
              if "sentiment" in data: del data["sentiment"]
              if "source" in data: del data["source"]
+             if "created_at" in data: del data["created_at"]
 
         elif target_table == "entries":
             data["summary"] = analysis.get("summary") # entries uses 'summary' VS 'ai_summary'
