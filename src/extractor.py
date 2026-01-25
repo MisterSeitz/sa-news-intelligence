@@ -334,7 +334,10 @@ class IntelligenceExtractor:
         }}
         """
 
-        models_to_try = self.ALIBABA_MODEL_LIST if self.is_alibaba else self.FREE_MODEL_LIST
+        if self.model:
+             models_to_try = [self.model]
+        else:
+             models_to_try = self.ALIBABA_MODEL_LIST if self.is_alibaba else self.FREE_MODEL_LIST
         
         for model in models_to_try:
             try:
