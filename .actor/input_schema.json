@@ -4,8 +4,23 @@
   "schemaVersion": 1,
   "type": "object",
   "properties": {
+    "runMode": {
+      "title": "Actor Operation Mode",
+      "type": "string",
+      "editor": "select",
+      "default": "news_scraper",
+      "enum": [
+        "news_scraper",
+        "crime_intelligence"
+      ],
+      "enumTitles": [
+        "📰 General News Scraper",
+        "🚨 Crime Intelligence Engine"
+      ],
+      "description": "Choose the primary task for this run. 'General News Scraper' crawls news sites. 'Crime Intelligence Engine' performs targeted searches using Brave API."
+    },
     "source": {
-      "title": "News Category",
+      "title": "News Source (News Scraper Mode Only)",
       "type": "string",
       "editor": "select",
       "enum": [
@@ -17,7 +32,6 @@
         "EWN",
         "Mail & Guardian",
         "Time Live",
-        "Crime Intelligence",
         "custom"
       ],
       "enumTitles": [
@@ -29,7 +43,6 @@
         "EWN",
         "Mail & Guardian",
         "Time Live",
-        "🚨 Crime Intelligence",
         "🔗 Custom URL"
       ],
       "default": "all",

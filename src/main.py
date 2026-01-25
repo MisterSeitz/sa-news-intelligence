@@ -23,12 +23,13 @@ async def main():
     async with Actor:
         actor_input = await Actor.get_input() or {}
         test_mode = actor_input.get("test_mode", False)
+        run_mode = actor_input.get("runMode", "news_scraper")
         
         selected_source = actor_input.get("source", "all")
         custom_url = actor_input.get("customFeedUrl")
         
         logger.info(f"🚀 Starting SA News Intelligence Actor")
-        logger.info(f"⚙️  Config: Source='{selected_source}', Test Mode={test_mode}")
+        logger.info(f"⚙️  Config: Mode='{run_mode}', Source='{selected_source}', Test Mode={test_mode}")
 
         # 1. Load Sources from CSV
         sources = []
@@ -77,14 +78,12 @@ async def main():
              logger.info("🧪 Test Mode: Limiting to first 5 sources.")
              target_sources = target_sources[:5]
 
-        logger.info(f"✅ Loaded {len(target_sources)} sources to process.")
-        
         # 3. Initialize Components
         extractor = IntelligenceExtractor() # Relies on Env Vars
         ingestor = SupabaseIngestor()     # Relies on Env Vars
         
         # 3b. Check for Crime Intelligence Mode
-        if selected_source == "Crime Intelligence":
+        if run_mode == "crime_intelligence":
             if CrimeIntelligenceEngine:
                 city_scope = actor_input.get("crimeCityScope", "major_cities")
                 crime_engine = CrimeIntelligenceEngine(ingestor, extractor)
@@ -94,6 +93,8 @@ async def main():
             else:
                 logger.error("❌ Crime Intelligence Engine unavailable.")
                 return
+        
+        logger.info(f"✅ Loaded {len(target_sources)} sources to process.")
 
         max_per_source = actor_input.get("maxArticlesPerSource", 5)
         
