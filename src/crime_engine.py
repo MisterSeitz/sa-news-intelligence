@@ -4,6 +4,7 @@ import asyncio
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import httpx
+from bs4 import BeautifulSoup
 from supabase import create_client, Client
 
 logger = logging.getLogger(__name__)
@@ -131,6 +132,40 @@ class CrimeIntelligenceEngine:
             
         return [{"name": c} for c in major_cities_list]
 
+    async def _scrape_text(self, url: str) -> str:
+        """Fetch and extract text from URL using HTTPX + BS4 (Fast)"""
+        try:
+            async with httpx.AsyncClient(follow_redirects=True, verify=False) as client:
+                resp = await client.get(url, timeout=15.0)
+                if resp.status_code == 200:
+                    soup = BeautifulSoup(resp.text, 'html.parser')
+                    # Remove script/style
+                    for script in soup(["script", "style", "nav", "footer", "header"]):
+                        script.extract()
+                    return soup.get_text(separator=' ', strip=True)
+        except Exception as e:
+            logger.warning(f"Failed to scrape {url}: {e}")
+        return ""
+
+    async def _process_deep_hit(self, url: str, title: str, date_str: str):
+        """Pipeline: Scrape -> Deep Analyze -> Ingest"""
+        logger.info(f"⬇️ Deep Scraping: {url}")
+        text = await self._scrape_text(url)
+        if len(text) < 200:
+            logger.warning(f"⚠️ Content too short/empty for {url}. Skipping deep analysis.")
+            return
+
+        logger.info(f"🧠 Deep Analyzing ({len(text)} chars)...")
+        deep_data = self.extractor.analyze_deep_intelligence(text, url)
+        
+        raw_meta = {
+            "title": title,
+            "url": url,
+            "published_date": date_str
+        }
+        
+        await self.ingestor.ingest_full_intelligence(deep_data, raw_meta)
+
     async def _scan_incidents(self, city: str):
         # Expanded Query Strategy for Robustness
         base_keywords = [
@@ -157,25 +192,15 @@ class CrimeIntelligenceEngine:
                 desc = res.get("description")
                 date_str = res.get("age") # e.g. "2 hours ago"
                 
-                # Analyze Snippet
-                analysis = self.extractor.analyze_crime_snippet(desc, q)
+                # Analyze Snippet (Gatekeeper)
+                snippet_analysis = self.extractor.analyze_crime_snippet(desc, q)
                 
-                if analysis.get("type") == "Incident":
-                    data = analysis.get("data", {})
-                    # Add missing context
-                    if not data.get("date"): data["date"] = date_str
-                    
-                    # Construct Raw Data packet
-                    raw = {
-                        "title": title,
-                        "url": url,
-                        "published_date": date_str, 
-                        "content": desc
-                    }
-                    
-                    logger.info(f"🔫 Detected Incident: {title[:50]}...")
-                    # Map to Ingestor signature: (incident, analysis, raw)
-                    await self.ingestor._ingest_incident(data, data, raw)
+                # If Snippet is a Dict (valid) and type is Relevant
+                if isinstance(snippet_analysis, dict):
+                    c_type = snippet_analysis.get("type")
+                    if c_type in ["Incident", "Wanted", "Missing", "Syndicate"]:
+                        logger.info(f"✨ Relevant Snippet ({c_type}). Promoting to Deep Analysis.")
+                        await self._process_deep_hit(url, title, date_str)
 
     async def _scan_people(self, city: str):
         queries = [
@@ -191,20 +216,12 @@ class CrimeIntelligenceEngine:
                 title = res.get("title")
                 url = res.get("url")
                 desc = res.get("description")
+                date_str = res.get("age")
                 
-                analysis = self.extractor.analyze_crime_snippet(desc, q)
-                c_type = analysis.get("type")
-                data = analysis.get("data", {})
-                data["url"] = url 
-                data["city"] = city # Fallback region
+                snippet_analysis = self.extractor.analyze_crime_snippet(desc, q)
                 
-                if c_type == "Wanted":
-                    logger.info(f"🚔 Detected Wanted Person: {title[:50]}...")
-                    await self.ingestor._ingest_wanted(data)
-                elif c_type == "Missing":
-                    logger.info(f"🆘 Detected Missing Person: {title[:50]}...")
-                    await self.ingestor._ingest_missing(data)
-                elif c_type == "Syndicate":
-                    logger.info(f"🐍 Detected Syndicate Info: {title[:50]}...")
-                    # Placeholder or implementation if ready
-                    pass
+                if isinstance(snippet_analysis, dict):
+                    c_type = snippet_analysis.get("type")
+                    if c_type in ["Incident", "Wanted", "Missing", "Syndicate"]:
+                         logger.info(f"✨ Relevant Person Snippet ({c_type}). Promoting to Deep Analysis.")
+                         await self._process_deep_hit(url, title, date_str)

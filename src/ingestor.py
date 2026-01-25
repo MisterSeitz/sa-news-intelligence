@@ -376,8 +376,107 @@ class SupabaseIngestor:
                 self.supabase.schema(target_schema).table(target_table).upsert(data, on_conflict=conflict_col).execute()
                 logger.info(f"{icon} Ingested/Updated content in {target_schema}.{target_table} (URL: {raw.get('url')})")
 
+    async def _ingest_syndicate(self, data: Dict):
+        try:
+            payload = {
+                "name": data.get("name"),
+                "category": data.get("type"),
+                "modus_operandi": data.get("details"),
+                "active": True,
+                "created_at": "now()"
+            }
+            # Assuming 'name' unique constraint or just insert. Schema snippet didn't show unique on name, but usually is.
+            # Safe to try upsert on name if it exists, or just insert and catch error.
+            # Using specific upsert on name if possible?
+            # Let's assume unique name for now.
+            res = self.supabase.schema("crime_intelligence").table("syndicates").select("id").eq("name", payload["name"]).execute()
+            if res.data:
+                 logger.info(f"Syndicate {payload['name']} already exists.")
+            else:
+                 self.supabase.schema("crime_intelligence").table("syndicates").insert(payload).execute()
+                 logger.info(f"🐍 Ingested Syndicate: {payload['name']}")
         except Exception as e:
-            logger.error(f"❌ Error ingesting content to {target_schema}.{target_table}: {e}")
+            logger.error(f"Error ingesting syndicates: {e}")
+
+    async def ingest_full_intelligence(self, analysis: Dict, raw_meta: Dict):
+        """
+        Ingests the output of Deep Intelligence Analysis.
+        """
+        if not analysis.get("relevant", True):
+            logger.info("🚫 Skipping irrelevant content (Non-SA).")
+            return
+
+        source_url = raw_meta.get("url")
+
+        # 1. Ingest Incidents
+        for inc in analysis.get("incidents", []):
+            try:
+                # Construct unique ID or just use source_url + index? 
+                # Schema uses source_url as unique. If multiple incidents in one URL, we fail on 2nd insert.
+                # Logic: One URL = One Incident report usually. 
+                # If distinct incidents, we might need to append a hash to source_url or just pick the main one.
+                # Let's take the first one or primary one for now to satisfy Unique Constraint.
+                # OR: The schema `source_url` unique constraint limits us to 1 incident per URL.
+                # We will just verify if we already ingested for this URL.
+                
+                payload = {
+                    "title": raw_meta.get("title"),
+                    "description": inc.get("description"),
+                    "type": inc.get("type"),
+                    "severity_level": inc.get("severity", 1),
+                    "source_url": source_url,
+                    "location": inc.get("location"),
+                    "occurred_at": self._parse_date(inc.get("date")) or "now()",
+                    "status": "verified",
+                    "published_at": raw_meta.get("published_date") or "now()"
+                }
+                self.supabase.schema("crime_intelligence").table("incidents").upsert(payload, on_conflict="source_url").execute()
+                logger.info(f"🔫 Deep Ingested Incident: {payload['type']} at {payload['location']}")
+                
+                # Check 1st one only for now to avoid constraint error
+                break 
+            except Exception as e:
+                logger.error(f"Error deep-ingesting incident: {e}")
+
+        # 2. Ingest People (Wanted/Missing/Suspects)
+        for p in analysis.get("people", []):
+            try:
+                role = p.get("role", "").lower()
+                status = p.get("status", "").lower()
+                
+                if status == "wanted" or role == "suspect":
+                     # Wanted
+                     p_data = {
+                         "name": p.get("name"),
+                         "crime_type": p.get("details"), # simplistic mapping
+                         "source_url": source_url + f"#{p.get('name')}", # Artificial unique URL for person?
+                         # Schema for wanted_people source_url is unique.
+                         # We need to be careful. The person might be referenced in multiple URLs.
+                         # Upsert based on Source URL of the report? No, that links the person to this report.
+                         # We might need to skip source_url unique enforcement if the person table implies distinct records per report?
+                         # Actually, checking schema: `source_url (unique)`. This implies 1 wanted person record per source URL.
+                         # So `source_url + #name` is a decent hack.
+                         "details": p.get("details")
+                     }
+                     self.supabase.schema("crime_intelligence").table("wanted_people").upsert(p_data, on_conflict="source_url").execute()
+                     logger.info(f"🚔 Deep Ingested Wanted: {p.get('name')}")
+                
+                elif status == "missing":
+                     # Missing
+                     m_data = {
+                         "name": p.get("name"),
+                         "details": p.get("details"),
+                         "source_url": source_url + f"#{p.get('name')}"
+                     }
+                     self.supabase.schema("crime_intelligence").table("missing_people").upsert(m_data, on_conflict="source_url").execute()
+                     logger.info(f"🆘 Deep Ingested Missing: {p.get('name')}")
+            except Exception as e:
+                logger.error(f"Error deep-ingesting person: {e}")
+
+        # 3. Ingest Orgs
+        for o in analysis.get("organizations", []):
+            if o.get("type") in ["Syndicate", "Gang"]:
+                await self._ingest_syndicate(o)
 
     def _parse_date(self, date_str: str) -> str:
         """

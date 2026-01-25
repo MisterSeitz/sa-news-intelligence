@@ -216,11 +216,79 @@ class IntelligenceExtractor:
                 if result_text.startswith("```json"): result_text = result_text[7:]
                 if result_text.endswith("```"): result_text = result_text[:-3]
                 
-                return json.loads(result_text.strip())
+                data = json.loads(result_text.strip())
+                if isinstance(data, dict):
+                    return data
+                else:
+                    logger.warning(f"Model {model} returned non-dict JSON: {data}")
+                    continue
+
             except Exception as e:
                 logger.warning(f"Snippet extraction failed on {model}: {e}")
                 continue
         
+        return {}
+
+    def analyze_deep_intelligence(self, text: str, source_url: str) -> Dict[str, Any]:
+        """
+        Performs deep analysis on full article text to extract multiple entities and incidents.
+        Enforces strict South African context.
+        """
+        if not self.client: return {}
+        
+        # Limit text
+        truncated_text = text[:15000]
+
+        prompt = f"""
+        Analyze the following full text from a news source ({source_url}).
+        
+        CRITICAL GOAL: Extract structured intelligence for a South African Crime & News Database.
+        
+        CONTEXT CHECK:
+        - Only extract events/entities RELEVANT to South Africa.
+        - If the text is about a foreign event (e.g. shooting in USA), return {{"relevant": false}}.
+
+        TEXT:
+        "{truncated_text}"
+
+        EXTRACT THE FOLLOWING (JSON ONLY):
+        1. "relevant": boolean (Is this South African?)
+        2. "sentiment": "High Urgency" | "Moderate Urgency" | "Low Urgency"
+        3. "summary": One paragraph summary.
+        4. "incidents": List of distinct crime/disaster events. 
+           Format: {{ "type": "...", "description": "...", "date": "...", "location": "...", "severity": 1-3 }}
+        5. "people": List of key individuals (Suspects, Victims, Officials).
+           Format: {{ "name": "...", "role": "Suspect"|"Victim"|"Official"|"Civilian", "status": "Wanted"|"Arrested"|"Deceased"|"Unknown", "details": "..." }}
+        6. "organizations": List of groups (Syndicates, Gangs, Companies, Govt Depts).
+           Format: {{ "name": "...", "type": "Syndicate"|"Gang"|"Company"|"Govt", "details": "..." }}
+        
+        OUTPUT JSON:
+        """
+
+        models_to_try = self.ALIBABA_MODEL_LIST if self.is_alibaba else self.FREE_MODEL_LIST
+        
+        for model in models_to_try:
+            try:
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": "You are a senior intelligence analyst for South Africa."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.0
+                )
+                result_text = response.choices[0].message.content.strip()
+                if result_text.startswith("```json"): result_text = result_text[7:]
+                if result_text.endswith("```"): result_text = result_text[:-3]
+                
+                data = json.loads(result_text.strip())
+                if isinstance(data, dict):
+                    return data
+            except Exception as e:
+                logger.warning(f"Deep extraction failed on {model}: {e}")
+                continue
+                
         return {}
 
     def _get_mock_data(self) -> Dict[str, Any]:
