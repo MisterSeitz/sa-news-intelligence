@@ -123,7 +123,7 @@ class IntelligenceExtractor:
 
         for model in models_to_try:
             try:
-                logger.info(f"Attempting extraction with model: {model}")
+                logger.info(f"🧠 Attempting extraction with model: {model}")
                 response = self.client.chat.completions.create(
                     model=model,
                     messages=[

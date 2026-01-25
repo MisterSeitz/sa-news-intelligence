@@ -43,12 +43,12 @@ class NewsScraper:
         )
         page: Page = await context.new_page()
         try:
-            logger.info(f"Navigating to {url}")
+            logger.info(f"🌐 Navigating to {url}")
             
             response = await page.goto(url, timeout=30000, wait_until="domcontentloaded")
             
             if not response or not response.ok:
-                logger.error(f"Failed to load page: {url} (Status: {response.status if response else 'None'})")
+                logger.error(f"❌ Failed to load page: {url} (Status: {response.status if response else 'None'})")
                 # Close the context if we fail here
                 await context.close()
                 return {"error": f"HTTP {response.status if response else 'Unknown'}"}

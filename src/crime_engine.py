@@ -141,6 +141,7 @@ class CrimeIntelligenceEngine:
         
         for q in queries:
             results = await self.brave.search(q, count=5)
+            logger.info(f"🔎 found {len(results)} results for query: '{q}'")
             for res in results:
                 title = res.get("title")
                 url = res.get("url")
@@ -159,13 +160,12 @@ class CrimeIntelligenceEngine:
                     raw = {
                         "title": title,
                         "url": url,
-                        "published_date": date_str, # Ingestor _parse_date might need to handle relative like "2 hours ago"? 
-                                                    # For now ingestor defaults to "now()" which is fine for "today" queries.
+                        "published_date": date_str, 
                         "content": desc
                     }
                     
+                    logger.info(f"🔫 Detected Incident: {title[:50]}...")
                     # Map to Ingestor signature: (incident, analysis, raw)
-                    # We pass 'data' as analysis too since it has 'sentiment' and 'locations' populated by analyze_crime_snippet
                     await self.ingestor._ingest_incident(data, data, raw)
 
     async def _scan_people(self, city: str):
@@ -176,6 +176,7 @@ class CrimeIntelligenceEngine:
         
         for q in queries:
             results = await self.brave.search(q, count=5)
+            logger.info(f"🕵️‍♂️ found {len(results)} results for query: '{q}'")
             for res in results:
                 title = res.get("title")
                 url = res.get("url")
@@ -188,9 +189,12 @@ class CrimeIntelligenceEngine:
                 data["city"] = city # Fallback region
                 
                 if c_type == "Wanted":
+                    logger.info(f"🚔 Detected Wanted Person: {title[:50]}...")
                     await self.ingestor._ingest_wanted(data)
                 elif c_type == "Missing":
+                    logger.info(f"🆘 Detected Missing Person: {title[:50]}...")
                     await self.ingestor._ingest_missing(data)
                 elif c_type == "Syndicate":
+                    logger.info(f"🐍 Detected Syndicate Info: {title[:50]}...")
                     # Placeholder or implementation if ready
                     pass

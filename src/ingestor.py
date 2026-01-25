@@ -355,13 +355,28 @@ class SupabaseIngestor:
 
             else:
                 # For other tables (real_estate, gaming, etc), they have 'url' unique constraint.
-                # Use standard upsert.
-                conflict_col = "url" 
-                self.supabase.schema(target_schema).table(target_table).upsert(data, on_conflict=conflict_col).execute()
-                logger.info(f"Ingested/Updated content in {target_schema}.{target_table} (URL: {raw.get('url')})")
+                # Emoji Mapping for Niche
+            emoji_map = {
+                "sports_intelligence": "🏉",
+                "gov_intelligence": "🗳️",
+                "web3": "🪙",
+                "real_estate": "🏠",
+                "gaming": "🎮",
+                "foodtech": "🍔",
+                "venture_capital": "💰",
+                "cybersecurity": "🛡️",
+                "health_fitness": "🏥",
+                "entries": "📰",
+                "news": "📰"
+            }
+            icon = emoji_map.get(target_table) or emoji_map.get(target_schema, "💾")
+
+            # For Real Estate/Gaming etc, we rely on 'url' unique constraint, but DO NOT send dedup_hash
+            self.supabase.schema(target_schema).table(target_table).upsert(data, on_conflict=conflict_col).execute()
+            logger.info(f"{icon} Ingested/Updated content in {target_schema}.{target_table} (URL: {raw.get('url')})")
 
         except Exception as e:
-            logger.error(f"Error ingesting content to {target_schema}.{target_table}: {e}")
+            logger.error(f"❌ Error ingesting content to {target_schema}.{target_table}: {e}")
         except Exception as e:
             logger.error(f"Error ingesting content to {target_schema}.{target_table}: {e}")
 
