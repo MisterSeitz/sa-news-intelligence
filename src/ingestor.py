@@ -215,7 +215,7 @@ class SupabaseIngestor:
         data = {
             "title": raw.get("title"),
             "url": raw.get("url"),
-            "published": raw.get("published_date"),
+            "published": self._parse_date(raw.get("published_date")),
             "category": analysis.get("category"),
             "ai_summary": analysis.get("summary"),
             # 'sentiment' is NOT common across all tables. Removed from default.
