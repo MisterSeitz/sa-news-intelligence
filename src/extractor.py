@@ -336,67 +336,13 @@ class IntelligenceExtractor:
                     continue
         return {"type": "Irrelevant", "data": {}}
 
-    def generate_briefing_script(self, stories: List[Dict]) -> Dict[str, str]:
 
-    def generate_briefing_script(self, stories: List[Dict]) -> Dict[str, str]:
-        """
-        Generates a 3-part script for HeyGen video based on input stories.
-        Strictly enforces word count limits.
-        """
-        if not self.client: return {}
-        
-        # Prepare context
-        story_text = ""
-        for i, s in enumerate(stories):
-            story_text += f"Story {i+1}: {s.get('title')} - {s.get('summary')}\n"
-
-        prompt = f"""
-        You are a Morning News Anchor scriptwriter. Write a script for a 60-second video update (approx 120 words MAX TOTAL).
-        
-        Input Stories:
-        {story_text}
-        
-        Requirements:
-        1. **Slide 1 (Intro + Story 1)**: Catchy welcome, then cover the most important story.
-        2. **Slide 2 (Story 2 & 3)**: Briefly cover the next two stories.
-        3. **Slide 3 (Outro)**: Quick wrap up and "Stay safe, South Africa".
-        
-        Tone: Professional, energetic, South African context.
-        Output: JSON with keys "slide_1", "slide_2", "slide_3".
-        NO MARKDOWN. JUST JSON.
-        """
-        
-        models = self._get_models()
-        for model in models:
-            try:
-                response = self.client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": "You are a professional news scriptwriter."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    response_format={"type": "json_object"},
-                    temperature=0.7
-                )
-                
-                content = response.choices[0].message.content.strip()
-                if content.startswith("```json"): content = content[7:]
-                if content.endswith("```"): content = content[:-3]
-                
-                return json.loads(content.strip())
-            except Exception as e:
-                logger.warning(f"Script generation failed on {model}: {e}")
-                continue
-                
-        return {}
 
     def analyze_deep_intelligence(self, text: str, source_url: str) -> Dict[str, Any]:
         """
         Performs deep analysis on full article text to extract multiple entities and incidents.
         Enforces strict South African context.
         """
-        if not self.client: return {}
-        
         # Limit text
         truncated_text = text[:15000]
 
@@ -426,29 +372,33 @@ class IntelligenceExtractor:
         OUTPUT JSON:
         """
 
-        models_to_try = self._get_models()
+        plans = self._get_provider_plans()
         
-        for model in models_to_try:
-            try:
-                response = self.client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": "You are a senior intelligence analyst for South Africa."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    response_format={"type": "json_object"},
-                    temperature=0.0
-                )
-                result_text = response.choices[0].message.content.strip()
-                if result_text.startswith("```json"): result_text = result_text[7:]
-                if result_text.endswith("```"): result_text = result_text[:-3]
-                
-                data = json.loads(result_text.strip())
-                if isinstance(data, dict):
-                    return data
-            except Exception as e:
-                logger.warning(f"Deep extraction failed on {model}: {e}")
-                continue
+        for plan in plans:
+            client = plan["client"]
+            models = plan["models"]
+            
+            for model in models:
+                try:
+                    response = client.chat.completions.create(
+                        model=model,
+                        messages=[
+                            {"role": "system", "content": "You are a senior intelligence analyst for South Africa."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        response_format={"type": "json_object"},
+                        temperature=0.0
+                    )
+                    result_text = response.choices[0].message.content.strip()
+                    if result_text.startswith("```json"): result_text = result_text[7:]
+                    if result_text.endswith("```"): result_text = result_text[:-3]
+                    
+                    data = json.loads(result_text.strip())
+                    if isinstance(data, dict):
+                        return data
+                except Exception as e:
+                    logger.warning(f"Deep extraction failed on {model}: {e}")
+                    continue
                 
         return {}
 
@@ -467,7 +417,7 @@ class IntelligenceExtractor:
         """
         Generates a 30-60 second morning briefing script from a list of stories.
         """
-        if not self.client or not stories: return {}
+        if not stories: return {}
         
         # Prepare context
         stories_text = ""
@@ -495,28 +445,31 @@ class IntelligenceExtractor:
         }}
         """
 
-
-
-        models_to_try = self._get_models()
+        plans = self._get_provider_plans()
         
-        for model in models_to_try:
-            try:
-                response = self.client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": "You are a professional news script writer."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    response_format={"type": "json_object"},
-                    temperature=0.7
-                )
-                result_text = response.choices[0].message.content.strip()
-                if result_text.startswith("```json"): result_text = result_text[7:]
-                if result_text.endswith("```"): result_text = result_text[:-3]
-                
-                return json.loads(result_text)
-            except Exception as e:
-                logger.warning(f"Script generation failed on {model}: {e}")
+        for plan in plans:
+            client = plan["client"]
+            models = plan["models"]
+            
+            for model in models:
+                try:
+                    response = client.chat.completions.create(
+                        model=model,
+                        messages=[
+                            {"role": "system", "content": "You are a professional news script writer."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        response_format={"type": "json_object"},
+                        temperature=0.7
+                    )
+                    result_text = response.choices[0].message.content.strip()
+                    if result_text.startswith("```json"): result_text = result_text[7:]
+                    if result_text.endswith("```"): result_text = result_text[:-3]
+                    
+                    return json.loads(result_text)
+                except Exception as e:
+                    logger.warning(f"Script generation failed on {model}: {e}")
+                    continue
                 
         return {}
 
