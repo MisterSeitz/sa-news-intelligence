@@ -7,7 +7,7 @@ import httpx
 from bs4 import BeautifulSoup
 from supabase import create_client, Client
 
-from search_client import BraveSearchClient
+from .search_client import BraveSearchClient
 
 logger = logging.getLogger(__name__)
 

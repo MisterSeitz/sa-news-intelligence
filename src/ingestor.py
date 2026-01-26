@@ -8,13 +8,14 @@ from postgrest.base_request_builder import APIResponse
 
 # Configure logging
 
-from search_client import BraveSearchClient
+from .search_client import BraveSearchClient
 
 logger = logging.getLogger(__name__)
 
 class SupabaseIngestor:
     """
     Ingests analyzed news data into Visita Intelligence Supabase tables.
+    Also handles uploading generated content like videos.
     """
 
 
@@ -214,6 +215,19 @@ class SupabaseIngestor:
             target_table = "cybersecurity"
         elif niche == "Health":
             target_table = "health_fitness"
+        
+        # NEW VERTICALS
+        elif niche == "Energy":
+            target_table = "energy_transition"
+        elif niche == "Semiconductors":
+            target_table = "semiconductors"
+        elif niche == "Logistics":
+            target_table = "logistics_supply_chain"
+        elif niche == "ClimateTech":
+            target_table = "climate_tech"
+        elif niche == "Motoring":
+            target_table = "motoring" # Or automotive, assuming standard pattern based on request
+        
         else:
             # Fallback for General/Markets/Other
             target_table = "entries" 
@@ -235,8 +249,16 @@ class SupabaseIngestor:
         niche_data = analysis.get("niche_data")
         if niche_data:
              # For niche tables (real_estate, etc.), they use 'snippet_sources' as a JSON dump
-             if target_table in ["real_estate", "gaming", "web3", "cybersecurity", "health_fitness", "foodtech", "venture_capital"]:
-                 data["snippet_sources"] = niche_data
+             if target_table in ["real_estate", "gaming", "web3", "cybersecurity", "health_fitness", "foodtech", "venture_capital", "energy_transition", "semiconductors", "logistics_supply_chain", "climate_tech"]:
+                  data["snippet_sources"] = niche_data # Using snippet_sources as JSON dump for specialized fields
+                  
+             if target_table == "motoring":
+                  # Motoring might likely use snippet_sources too, or dedicated columns if the user added them.
+                  # Given the request "standard ai_intelligence fields (url, ai_summary, snippet_sources) plus specialized JSONB/Text columns for their niche",
+                  # we can put specifics in niche_data (snippet_sources) OR if there are dedicated columns like 'brand', we let Supabase handle extraction 
+                  # OR we put it in snippet_sources.
+                  # For safety and flexibility, we put it in snippet_sources (which is JSONB).
+                  data["snippet_sources"] = niche_data
 
 
         # Add Image URL if available (handled differently per table, but good to have in base if possible)
@@ -264,6 +286,41 @@ class SupabaseIngestor:
              # news (sports): no, uses structured_data? or just add to json? 
              # entries: no, add to data jsonb
              pass
+
+    async def upload_briefing_video(self, video_url: str, filename: str):
+        """
+        Downloads video from temporary HeyGen URL and uploads to Supabase Storage.
+        """
+        if not self.supabase:
+            logger.error("Supabase not initialized. Cannot upload video.")
+            return
+
+        logger.info(f"📥 Downloading video from {video_url}...")
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(video_url, timeout=60.0)
+                if resp.status_code != 200:
+                    logger.error(f"Failed to download video: {resp.status_code}")
+                    return
+                video_bytes = resp.content
+
+            logger.info(f"📤 Uploading {len(video_bytes)} bytes to 'news-briefings' bucket...")
+            
+            # Using Supabase Storage API
+            # Ideally: self.supabase.storage.from_("news-briefings").upload(filename, video_bytes, {"content-type": "video/mp4"})
+            # Note: storage api in python supabase client is synchronous or async? usually synchronous wrapper over httpx?
+            # Creating a sync wrapper execution if needed, or just standard call.
+            # The supabase-py client `upload` is synchronous usually.
+            
+            res = self.supabase.storage.from_("news-briefings").upload(
+                file=video_bytes,
+                path=filename,
+                file_options={"content-type": "video/mp4", "upsert": "true"}
+            )
+            logger.info(f"✅ Upload successful. Path: {filename}")
+            
+        except Exception as e:
+            logger.error(f"Failed to upload briefing video: {e}")
 
         # Niche Specific Adjustments
         if target_table == "news" and target_schema == "sports_intelligence":

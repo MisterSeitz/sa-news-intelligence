@@ -163,11 +163,61 @@ class IntelligenceExtractor:
              - "key_players": Players mentioned
              """
 
+        elif "Motoring" in category_hint or "Automotive" in category_hint or "Cars" in category_hint:
+             specific_instructions = """
+             **MOTORING INTELLIGENCE MODE**
+             Extract the following into a 'niche_data' object:
+             - "brand": Primary automotive brand (Standardize: Toyota, VW, BMW, etc.)
+             - "model": Specific model mentioned (e.g. "Polo Vivo", "Ranger")
+             - "subniche": "EV" | "Used Market" | "OEM" | "General"
+             - "price_mentioned": Numeric value if available
+             - "launch_date": If new car launch
+             """
+
+        elif "Energy" in category_hint or "Power" in category_hint:
+             specific_instructions = """
+             **ENERGY TRANSITION MODE**
+             Extract the following into a 'niche_data' object:
+             - "energy_type": "Solar" | "Wind" | "Coal" | "Nuclear" | "Grid"
+             - "capacity_mw": Megawatts mentioned
+             - "project_name": Specific project name
+             - "location": Project location
+             """
+
+        elif "Semiconductor" in category_hint or "Chip" in category_hint:
+             specific_instructions = """
+             **SEMICONDUCTOR INTELLIGENCE MODE**
+             Extract the following into a 'niche_data' object:
+             - "company": Chip manufacturer/designer
+             - "chip_type": "GPU" | "CPU" | "Memory" | "Automotive"
+             - "application": "AI" | "Consumer" | "Industrial"
+             """
+
+        elif "Logistics" in category_hint or "Supply Chain" in category_hint:
+             specific_instructions = """
+             **LOGISTICS INTELLIGENCE MODE**
+             Extract the following into a 'niche_data' object:
+             - "transport_mode": "Sea" | "Air" | "Rail" | "Road"
+             - "route": Origin -> Destination
+             - "company": Logistics provider
+             - "disruption_status": "Normal" | "Delayed" | "Blocked"
+             """
+
+        elif "Climate" in category_hint or "Green" in category_hint:
+             specific_instructions = """
+             **CLIMATE TECH MODE**
+             Extract the following into a 'niche_data' object:
+             - "technology": Specific tech (e.g. "Carbon Capture", "Green Hydrogen")
+             - "investment_round": "Seed" | "Series A" | "Grant" if applicable
+             - "impact_metric": CO2 reduction or similar metric
+             """
+
         prompt = base_prompt + f"""
         Extract the following fields into a valid JSON object:
         1. **sentiment**: "High Urgency", "Moderate Urgency", or "Low Urgency".
         2. **category**: General category (e.g. "Politics", "Crime", "Business").
-        3. **niche_category**: ONE of ["Sports", "Politics", "Real Estate", "Gaming", "FoodTech", "Web3", "VC", "Cybersecurity", "Health", "Markets", "General", "Crime"].
+        2. **category**: General category (e.g. "Politics", "Crime", "Business").
+        3. **niche_category**: ONE of ["Sports", "Politics", "Real Estate", "Gaming", "FoodTech", "Web3", "VC", "Cybersecurity", "Health", "Markets", "General", "Crime", "Motoring", "Energy", "Semiconductors", "Logistics", "ClimateTech"].
         4. **summary**: A concise 1-paragraph summary.
         5. **entities**: List of KEY people and organizations (max 8). 
            Format: {{"name": "...", "type": "Politician"|"Athlete"|"Businessperson"|"Civilian"|"Organization"|"Company"|"GovernmentBody"}}
@@ -296,6 +346,58 @@ class IntelligenceExtractor:
                 logger.warning(f"Snippet extraction failed on {model}: {e}")
                 continue
         
+        return {}
+
+    def generate_briefing_script(self, stories: List[Dict]) -> Dict[str, str]:
+        """
+        Generates a 3-part script for HeyGen video based on input stories.
+        Strictly enforces word count limits.
+        """
+        if not self.client: return {}
+        
+        # Prepare context
+        story_text = ""
+        for i, s in enumerate(stories):
+            story_text += f"Story {i+1}: {s.get('title')} - {s.get('summary')}\n"
+
+        prompt = f"""
+        You are a Morning News Anchor scriptwriter. Write a script for a 60-second video update (approx 120 words MAX TOTAL).
+        
+        Input Stories:
+        {story_text}
+        
+        Requirements:
+        1. **Slide 1 (Intro + Story 1)**: Catchy welcome, then cover the most important story.
+        2. **Slide 2 (Story 2 & 3)**: Briefly cover the next two stories.
+        3. **Slide 3 (Outro)**: Quick wrap up and "Stay safe, South Africa".
+        
+        Tone: Professional, energetic, South African context.
+        Output: JSON with keys "slide_1", "slide_2", "slide_3".
+        NO MARKDOWN. JUST JSON.
+        """
+        
+        models = self._get_models()
+        for model in models:
+            try:
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": "You are a professional news scriptwriter."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.7
+                )
+                
+                content = response.choices[0].message.content.strip()
+                if content.startswith("```json"): content = content[7:]
+                if content.endswith("```"): content = content[:-3]
+                
+                return json.loads(content.strip())
+            except Exception as e:
+                logger.warning(f"Script generation failed on {model}: {e}")
+                continue
+                
         return {}
 
     def analyze_deep_intelligence(self, text: str, source_url: str) -> Dict[str, Any]:

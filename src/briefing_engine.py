@@ -99,6 +99,145 @@ class BriefingEngine:
         # Making a simple assumption based on standard supabase paths for now.
         public_url = f"{self.ingestor.url}/storage/v1/object/public/news-briefings/{filename}"
         
+        try:
+             self.ingestor.supabase.schema("ai_intelligence").table("briefing_logs").insert({
+                 "video_url": public_url,
+                 "script_data": script_data,
+                 "date": datetime.now().strftime('%Y-%m-%d'),
+                 "status": "completed"
+             }).execute()
+        except Exception as e:
+            logger.warning(f"Failed to log briefing: {e}")
+
+    async def _fetch_top_stories(self) -> List[Dict]:
+        """Fetch pertinent stories from the unified view."""
+        try:
+            # Query news_unified_view
+            # Criteria: High Urgency/Excitement OR recent & popular
+            # Limit 3 for brevity
+            date_today = datetime.now().strftime('%Y-%m-%d')
+            
+            # Since view might not support direct fitlering if not materialized properly, 
+            # we rely on underlying tables or simple select.
+            # Let's try to query the view directly.
+            res = self.ingestor.supabase.table("news_unified_view")\
+                .select("*")\
+                .order("published_at", desc=True)\
+                .limit(10)\
+                .execute()
+                
+            all_news = res.data
+            if not all_news: return []
+            
+            # Simple heuristic: filter for 'High' sentiment or just take top 3
+            top_stories = []
+            for item in all_news:
+                if len(top_stories) >= 3: break
+                # prioritize crime/politics
+                if item.get("sentiment") in ["High Urgency", "High Excitement", "Critical"] or item.get("category") in ["Crime", "Politics"]:
+                    top_stories.append(item)
+            
+            # if not enough, fill with others
+            if len(top_stories) < 3:
+                for item in all_news:
+                    if len(top_stories) >= 3: break
+                    if item not in top_stories:
+                        top_stories.append(item)
+                        
+            return top_stories
+
+        except Exception as e:
+            logger.error(f"Failed to fetch stories: {e}")
+            return []
+
+    async def _trigger_heygen_video(self, script_data: Dict) -> str:
+        """Sends request to HeyGen v2 template API."""
+        api_key = self._get_active_key()
+        url = f"{self.base_url}/v2/video/generate"
+        
+        headers = {
+            "X-Api-Key": api_key,
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "video_inputs": [
+                {
+                    "character": {
+                        "type": "avatar",
+                        "avatar_id": "Daisy-20220818", # Default fallback, template usually dictates
+                        "avatar_style": "normal"
+                    },
+                    "voice": {
+                        "type": "audio",
+                        "voice_id": "2d5b0e6cf361460aa7fc47e3eee4ba54" # Default en-US generic
+                    },
+                    # "template_id": self.template_id, # V2 uses explicit stricture often?
+                    # Actually for template generation, endpoint might be different: /v2/template/<id>/generate
+                    # Checking HeyGen docs standard: POST https://api.heygen.com/v2/video/generate
+                    # with 'test' mode? using 'template_id' in payload
+                }
+            ],
+            "test": False,
+            "template_id": self.template_id,
+            "title": f"Morning Briefing {datetime.now().strftime('%Y-%m-%d')}",
+            "variables": {
+                "slide_1": script_data.get("slide_1", "Welcome to news."),
+                "slide_2": script_data.get("slide_2", "Here is the summary."),
+                "slide_3": script_data.get("slide_3", "That's all for today.")
+            }
+        }
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(url, headers=headers, json=payload, timeout=30.0)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    video_id = data.get("data", {}).get("video_id")
+                    logger.info(f"✅ Video Generation Started: {video_id}")
+                    return video_id
+                else:
+                    logger.error(f"HeyGen Trigger Failed ({resp.status_code}): {resp.text}")
+                    return None
+        except Exception as e:
+             logger.error(f"HeyGen Request Error: {e}")
+             return None
+
+    async def _poll_heygen_status(self, video_id: str) -> str:
+        """Polls status until completed or failed."""
+        api_key = self._get_active_key()
+        url = f"{self.base_url}/v1/video_status.get?video_id={video_id}"
+        headers = {"X-Api-Key": api_key}
+        
+        attempts = 0
+        max_attempts = 20 # 20 * 15s = 5 mins
+        
+        while attempts < max_attempts:
+            await asyncio.sleep(15) 
+            try:
+                async with httpx.AsyncClient() as client:
+                    resp = await client.get(url, headers=headers, timeout=10.0)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        status = data.get("data", {}).get("status")
+                        
+                        if status == "completed":
+                            video_url = data.get("data", {}).get("video_url")
+                            logger.info(f"✅ Video Completed! URL: {video_url}")
+                            return video_url
+                        elif status == "failed":
+                            logger.error(f"❌ Video Generation Failed: {data.get('data', {}).get('error')}")
+                            return None
+                        else:
+                            logger.info(f"⏳ Status: {status}...")
+            except Exception as e:
+                logger.warning(f"Polling error: {e}")
+            
+            attempts += 1
+            
+        logger.error("❌ Polling timed out.")
+        return None
+        
         await self._log_briefing_to_db(public_url, total_text, int(est_duration))
 
         logger.info("✅ Morning Briefing Complete.")

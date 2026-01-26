@@ -106,10 +106,8 @@ async def main():
                 logger.error("❌ Crime Intelligence Engine unavailable.")
                 return
         
-
-        
         # 3c. Check for Morning Briefing Mode
-        if run_mode == "morning_briefing":
+        elif run_mode == "morning_briefing":
             if BriefingEngine:
                 t_id = actor_input.get("heygenTemplateId")
                 briefing_engine = BriefingEngine(ingestor, extractor, template_id=t_id)
