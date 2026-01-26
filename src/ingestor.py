@@ -287,7 +287,7 @@ class SupabaseIngestor:
              # entries: no, add to data jsonb
              pass
 
-    async def upload_briefing_video(self, video_url: str, filename: str):
+     async def upload_briefing_video(self, video_url: str, filename: str):
         """
         Downloads video from temporary HeyGen URL and uploads to Supabase Storage.
         """
@@ -307,11 +307,6 @@ class SupabaseIngestor:
             logger.info(f"📤 Uploading {len(video_bytes)} bytes to 'news-briefings' bucket...")
             
             # Using Supabase Storage API
-            # Ideally: self.supabase.storage.from_("news-briefings").upload(filename, video_bytes, {"content-type": "video/mp4"})
-            # Note: storage api in python supabase client is synchronous or async? usually synchronous wrapper over httpx?
-            # Creating a sync wrapper execution if needed, or just standard call.
-            # The supabase-py client `upload` is synchronous usually.
-            
             res = self.supabase.storage.from_("news-briefings").upload(
                 file=video_bytes,
                 path=filename,
@@ -321,6 +316,28 @@ class SupabaseIngestor:
             
         except Exception as e:
             logger.error(f"Failed to upload briefing video: {e}")
+
+    async def check_url_exists(self, url: str) -> bool:
+        """
+        Checks if a URL has already been ingested. 
+        Checks 'news_unified_view' (if efficient) or specific tables.
+        For speed, we might just check 'entries' and assume coverage, or check the unified view if it's indexed.
+        """
+        if not self.supabase: return False
+        try:
+            # Check unified view - covers all tables if properly set up
+            res = self.supabase.table("news_unified_view").select("id").eq("source_url", url).limit(1).execute()
+            if res.data:
+                return True
+            
+            # Fallback: check entries directly if view is slow/missing
+            # res = self.supabase.table("entries").select("id").eq("url", url).limit(1).execute()
+            # if res.data: return True
+            
+            return False
+        except Exception as e:
+            logger.warning(f"Failed to check duplication for {url}: {e}")
+            return False
 
         # Niche Specific Adjustments
         if target_table == "news" and target_schema == "sports_intelligence":

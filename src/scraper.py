@@ -3,6 +3,7 @@ from typing import Optional, Dict, List
 from playwright.async_api import async_playwright, Page, Browser
 from bs4 import BeautifulSoup
 import logging
+import math
 from apify import Actor
 
 # Configure logging
@@ -14,8 +15,10 @@ class NewsScraper:
     Uses Playwright for dynamic content and falls back to simple parsing where appropriate.
     """
 
-    def __init__(self, headless: bool = True):
+    def __init__(self, extractor=None, ingestor=None, headless: bool = True):
         self.headless = headless
+        self.extractor = extractor
+        self.ingestor = ingestor
         self.browser: Optional[Browser] = None
         self.playwright = None
 
@@ -79,7 +82,9 @@ class NewsScraper:
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
         page = await context.new_page()
-        links = set()
+        # Use a list to preserve order (assuming site lists latest first), but check for uniqueness
+        links = []
+        seen_links = set()
         
         try:
             logger.info(f"🕷️ Crawling listing page: {start_url}")
@@ -149,7 +154,9 @@ class NewsScraper:
 
                 if link == start_url or link == start_url + "/": continue
                 
-                links.add(link)
+                if link not in seen_links:
+                    links.append(link)
+                    seen_links.add(link)
                 
             logger.info(f"Found {len(links)} potential article links on {start_url}")
 
@@ -158,7 +165,9 @@ class NewsScraper:
             
         await context.close()
         
-        all_links = list(links)
+        await context.close()
+        
+        all_links = links # Already a list and ordered
         
         # Priority Logic: Sort by keywords
         if priority_keywords:
@@ -293,3 +302,87 @@ class NewsScraper:
             "content": text_content,
             "raw_html_snippet": str(article_body)[:5000] # store truncated raw html for debugging/AI
         }
+
+    async def run(self, sources: List[Dict], max_articles: int = 50):
+        """
+        Main execution method found in main.py calls.
+        Iterates through sources and scrapes articles.
+        Enforces fairness by calculating a per-source limit.
+        """
+        if not sources:
+            logger.warning("No sources provided to scraper.")
+            return
+
+        # Smart Limit Calculation
+        total_sources = len(sources)
+        per_source_limit = max(1, math.ceil(max_articles / total_sources))
+        # Ensure at least 3 articles per source if possible, but respect global max
+        # Actually, standard logic: spread strictly or standard?
+        # User complained about "Only getting MG". 
+        # Standard loop with global break = unfair.
+        # We will use per_source_limit.
+        
+        logger.info(f"⚖️ Scraper Fairness: {per_source_limit} articles per source (Max Global: {max_articles})")
+        
+        articles_processed = 0
+        
+        async with self:
+            for source in sources:
+                if articles_processed >= max_articles:
+                    logger.info("🛑 Global Max Articles limit reached.")
+                    break
+                    
+                url = source.get("URL")
+                name = source.get("Source")
+                category_hint = source.get("Category", "General")
+                
+                logger.info(f"🌍 Processing Source: {name} ({url})")
+                
+                try:
+                    # Fetch Links
+                    links = await self.get_article_links(url, max_links=max(10, per_source_limit * 2))
+                    
+                    source_processed_count = 0
+                    
+                    for link in links:
+                        if articles_processed >= max_articles: break
+                        if source_processed_count >= per_source_limit: 
+                            logger.info(f"   Done with {name} (Hit limit of {per_source_limit})")
+                            break
+                            
+                        # DEDUPLICATION CHECK
+                        if self.ingestor:
+                            exists = await self.ingestor.check_url_exists(link)
+                            if exists:
+                                logger.info(f"   ⏩ Skipping duplicate: {link}")
+                                continue
+                        
+                        logger.info(f"   📄 Scrape & Analyze: {link}")
+                        
+                        # Fetch Content
+                        raw_data = await self.fetch_article(link)
+                        if "error" in raw_data:
+                            continue
+                            
+                        # Enrich with CSV metadata
+                        raw_data["source_name"] = name
+                        raw_data["csv_category"] = category_hint
+                        
+                        # Analyze (Extractor)
+                        if self.extractor:
+                            analysis = self.extractor.analyze(raw_data, raw_data.get("content", ""), csv_category=category_hint)
+                            if not analysis:
+                                logger.warning("   ⚠️ Extraction failed or empty.")
+                                continue
+                                
+                            # Ingest (Supabase)
+                            if self.ingestor:
+                                await self.ingestor.ingest(analysis, raw_data)
+                                articles_processed += 1
+                                source_processed_count += 1
+                                
+                except Exception as e:
+                    logger.error(f"Failed to process source {name}: {e}")
+                    continue
+                    
+        logger.info(f"🏁 Scraper Job Complete. Processed {articles_processed} new articles.")

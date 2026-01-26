@@ -19,6 +19,12 @@ except ImportError:
     BriefingEngine = None
     logger.warning("BriefingEngine module not found or failed to load.")
 
+try:
+    from .backfill_images import ImageBackfiller
+except ImportError:
+    ImageBackfiller = None
+    logger.warning("ImageBackfiller module not found.")
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -38,6 +44,21 @@ async def main():
         
         logger.info(f"🚀 Starting SA News Intelligence Actor")
         logger.info(f"⚙️  Config: Mode='{run_mode}', Source='{selected_source}', Test Mode={test_mode}")
+
+        # 0. Check for Historical Backfill Request
+        if actor_input.get("backfillHistoricalImages", False):
+            if ImageBackfiller:
+                logger.info("🧹 Mode: Historical Image Backfill Enabled.")
+                backfiller = ImageBackfiller()
+                # Run for key tables
+                tables = ["entries", "gov_intelligence.election_news", "sports_intelligence.news"]
+                for t in tables:
+                    await backfiller.process_batch(t, limit=100) # Increased limit for manual run
+                logger.info("✅ Historical Backfill Complete. Exiting.")
+                return 
+            else:
+                 logger.error("❌ Backfill requested but module failed to load.")
+                 return
 
         # 1. Load Sources from CSV
         sources = []

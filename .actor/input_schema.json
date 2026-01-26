@@ -256,6 +256,12 @@
       "type": "boolean",
       "description": "If enabled, uses Brave Image Search to find images for articles that lack them. Incurs API costs.",
       "default": true
+    },
+    "backfillHistoricalImages": {
+      "title": "Clean-Up: Run Historical Image Backfill",
+      "type": "boolean",
+      "description": "If enabled, scans existing DB records for missing images and fills them using Brave Search. (Runs INSTEAD of scraping if checked).",
+      "default": false
     }
   },
   "required": [
