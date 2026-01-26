@@ -265,36 +265,118 @@ class NewsScraper:
         # 4. Image Extraction
         image_url = None
         
-        # Priority 1: OpenGraph
-        og_image = soup.find("meta", property="og:image")
+        # Helper: Extract from JSON-LD
+        def _extract_from_json_ld(s):
+            try:
+                import json
+                scripts = s.find_all("script", type="application/ld+json")
+                for script in scripts:
+                    try:
+                        data = json.loads(script.string)
+                        # JSON-LD can be a list or a single object
+                        items = data if isinstance(data, list) else [data]
+                        for item in items:
+                            # Direct image property
+                            img = item.get("image")
+                            if isinstance(img, dict):
+                                img_url = img.get("url")
+                            elif isinstance(img, str):
+                                img_url = img
+                            else:
+                                img_url = None
+                                
+                            if img_url and img_url.startswith("http"):
+                                return img_url
+                                
+                            # Thumbnail URL fallback
+                            thumb = item.get("thumbnailUrl")
+                            if thumb and isinstance(thumb, str) and thumb.startswith("http"):
+                                return thumb
+                    except:
+                        continue
+            except:
+                pass
+            return None
+
+        # Layer 1: Enhanced Metadata
+        # Priority 1.1: OpenGraph
+        og_image = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "og:image"})
         if og_image:
             image_url = og_image.get("content")
         
-        # Priority 2: Semantic Figure/Image (common in news)
-        if not image_url and article_body != soup:
-            # Look for figure > img or just img with decent size
-            first_img = article_body.find("img")
-            if first_img:
-                src = first_img.get("src")
-                # heuristic: ignore small icons/tracking pixels (if width attr exists)
-                width = first_img.get("width")
-                if src and (not width or (width.isdigit() and int(width) > 200)):
-                    image_url = src
-        
-        # Priority 3: First visual in main container (if body heuristic failed)
+        # Priority 1.2: Twitter Image
         if not image_url:
-             main_img = soup.select_one("main img")
-             if main_img:
-                 image_url = main_img.get("src")
+            twitter_image = soup.find("meta", name="twitter:image") or soup.find("meta", property="twitter:image")
+            if twitter_image:
+                image_url = twitter_image.get("content")
         
+        # Priority 1.3: Itemprop Image (Schema.org)
         if not image_url:
-            # Fallback: Find first large image in article body
-            if article_body:
-                img = article_body.find("img")
-                if img:
-                    src = img.get("src") or img.get("data-src")
-                    if src and src.startswith("http"): # Basic filter
+             itemprop_image = soup.find("meta", itemprop="image") or soup.find("link", itemprop="image")
+             if itemprop_image:
+                 image_url = itemprop_image.get("content") or itemprop_image.get("href")
+
+        # Layer 2: JSON-LD Parsing
+        if not image_url:
+            image_url = _extract_from_json_ld(soup)
+        
+        # Layer 3: CSS Selection (Featured Image Classes)
+        if not image_url:
+            featured_selectors = [
+                "img.wp-post-image", 
+                "img.featured-image", 
+                "img.article-featured-image", 
+                "img.main-image",
+                ".featured-media img",
+                ".article-header img"
+            ]
+            for selector in featured_selectors:
+                found_img = soup.select_one(selector)
+                if found_img:
+                    # Check for lazy loading attributes first
+                    src = found_img.get("data-src") or found_img.get("data-lazy-src") or found_img.get("src")
+                    if src and src.startswith("http"):
                         image_url = src
+                        break
+
+        # Layer 4: Semantic Figure/Image in Body (Existing Logic + Improvements)
+        if not image_url and article_body and article_body != soup:
+            # Look for figure > img or just img with decent size
+            # Also check for srcset to get the highest resolution
+            img_tags = article_body.find_all("img")
+            for img in img_tags:
+                # 4.1 Check srcset for higher res variants
+                srcset = img.get("srcset")
+                if srcset:
+                    # srcset format: "url1 300w, url2 600w"
+                    try:
+                        variants = [v.strip().split(" ") for v in srcset.split(",")]
+                        # Filter out empty/malformed
+                        variants = [v for v in variants if len(v) >= 1]
+                        if variants:
+                            # Sort by width if available (usually the second part)
+                            # Or just take the last one as it's often the largest
+                            image_url = variants[-1][0]
+                            if image_url.startswith("//"): image_url = "https:" + image_url
+                            if image_url.startswith("http"): break
+                    except:
+                        pass
+
+                # 4.2 Standard src/data-src
+                src = img.get("data-src") or img.get("data-original") or img.get("src")
+                if src and src.startswith("http"):
+                    # heuristic: ignore small icons/tracking pixels
+                    width = img.get("width") or ""
+                    if not width or (width.isdigit() and int(width) > 200) or "alt" in img.attrs:
+                        image_url = src
+                        break
+        
+        # Final cleanup for absolute URLs
+        if image_url and image_url.startswith("//"):
+            image_url = "https:" + image_url
+        elif image_url and image_url.startswith("/"):
+            from urllib.parse import urljoin
+            image_url = urljoin(url, image_url)
 
         return {
             "url": url,
