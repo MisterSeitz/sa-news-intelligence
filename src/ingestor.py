@@ -198,9 +198,33 @@ class SupabaseIngestor:
         if niche == "Sports":
             target_schema = "sports_intelligence"
             target_table = "news"
-        elif niche == "Politics" and "election" in raw.get("title", "").lower():
-            target_schema = "gov_intelligence"
-            target_table = "election_news"
+        elif niche == "Politics" or niche == "Elections":
+             # Robust check for Election relevance
+             title_lower = raw.get("title", "").lower()
+             summary_lower = analysis.get("summary", "").lower()
+             niche_data = analysis.get("niche_data", {})
+             
+             is_election = (
+                 "election" in title_lower or 
+                 "vote" in title_lower or 
+                 "ballot" in title_lower or 
+                 "iec" in title_lower or
+                 "campaign" in title_lower or
+                 niche_data.get("election_event") is True
+             )
+             
+             if is_election:
+                target_schema = "gov_intelligence"
+                target_table = "election_news"
+             else:
+                # Regular political news fallback? 
+                # Schema might strictly be 'election_news' for all gov/politics?
+                # User said: "gov_intelligence.election_news" is for election coverage.
+                # "ai_intelligence.news_articles" (entries?) is for general.
+                # Let's map general politics to entries if not election specific, OR just put all politics in election_news if it fits the schema?
+                # The table name is 'election_news', implies specificity.
+                # We will route to 'entries' (General) if not election, but tag it as Politics.
+                target_table = "entries"
         elif niche == "Web3":
             target_table = "web3"
         elif niche == "Real Estate":
@@ -339,6 +363,21 @@ class SupabaseIngestor:
             logger.warning(f"Failed to check duplication for {url}: {e}")
             return False
 
+        # Mapping for Election News
+        if target_table == "election_news":
+            # Map niche_data fields to specific columns if they exist
+            # Based on user request fields: mentioned_candidates, mentioned_parties, ward_codes, municipality_codes
+            # keys might need flattening if the table expects arrays
+             if "mentioned_candidates" in niche_data: data["mentioned_candidates"] = niche_data["mentioned_candidates"]
+             if "mentioned_parties" in niche_data: data["mentioned_parties"] = niche_data["mentioned_parties"]
+             # If table columns are named strictly, map them. Assuming JSONB or Text[] arrays.
+             passis.get("summary")
+             if "ai_summary" in data: del data["ai_summary"]
+             
+             if "published" in data:
+                 data["published_at"] = data["published"]
+                 del data["published"]
+                 
         # Niche Specific Adjustments
         if target_table == "news" and target_schema == "sports_intelligence":
              # Sports specific schema mapping

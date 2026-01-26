@@ -122,14 +122,18 @@ class IntelligenceExtractor:
              - "courts": Court names mentioned
              """
              
-        elif "Politics" in category_hint or "Government" in category_hint:
+        elif "Politics" in category_hint or "Government" in category_hint or "Election" in category_hint:
              specific_instructions = """
-             **POLITICAL INTELLIGENCE MODE**
+             **POLITICAL & ELECTION INTELLIGENCE MODE (2026 ELECTIONS focus)**
              Extract the following into a 'niche_data' object:
              - "politicians": List of politician names involved
-             - "parties": List of political parties involved (ANC, DA, EFF, MK, etc.)
+             - "mentioned_candidates": List of specific election candidates
+             - "mentioned_parties": List of political parties involved (ANC, DA, EFF, MK, PA, etc.)
+             - "ward_codes": List of Ward codes if mentioned (Format: "Ward 123" -> 123, or specific codes like "19100054")
+             - "municipality_codes": List of Municipalities (e.g. "City of Cape Town", "Ethekwini", "Tshwane")
+             - "policy_areas": List of policy topics (e.g. "NHI", "Land Reform", "Service Delivery", "Water Crisis")
              - "corruption_risk": Boolean (True if corruption/fraud/irregularity allegated)
-             - "policy_areas": List of policy topics (e.g. "NHI", "Land Reform", "Education")
+             - "election_event": Boolean (True if about campaigning, voting, registration, or results)
              """
 
         elif "Business" in category_hint or "Economy" in category_hint or "Markets" in category_hint:
