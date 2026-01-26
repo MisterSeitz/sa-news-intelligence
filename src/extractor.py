@@ -204,7 +204,7 @@ class IntelligenceExtractor:
 
         # Reuse model logic (Simplified for snippet - use faster models if possible)
         # For now, use same list logic
-        models_to_try = self.ALIBABA_MODEL_LIST if self.is_alibaba else self.FREE_MODEL_LIST
+        models_to_try = self._get_models()
         
         for model in models_to_try:
             try:
@@ -270,7 +270,7 @@ class IntelligenceExtractor:
         OUTPUT JSON:
         """
 
-        models_to_try = self.ALIBABA_MODEL_LIST if self.is_alibaba else self.FREE_MODEL_LIST
+        models_to_try = self._get_models()
         
         for model in models_to_try:
             try:
