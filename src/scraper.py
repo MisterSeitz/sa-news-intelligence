@@ -253,9 +253,28 @@ class NewsScraper:
 
         # 4. Image Extraction
         image_url = None
+        
+        # Priority 1: OpenGraph
         og_image = soup.find("meta", property="og:image")
         if og_image:
             image_url = og_image.get("content")
+        
+        # Priority 2: Semantic Figure/Image (common in news)
+        if not image_url and article_body != soup:
+            # Look for figure > img or just img with decent size
+            first_img = article_body.find("img")
+            if first_img:
+                src = first_img.get("src")
+                # heuristic: ignore small icons/tracking pixels (if width attr exists)
+                width = first_img.get("width")
+                if src and (not width or (width.isdigit() and int(width) > 200)):
+                    image_url = src
+        
+        # Priority 3: First visual in main container (if body heuristic failed)
+        if not image_url:
+             main_img = soup.select_one("main img")
+             if main_img:
+                 image_url = main_img.get("src")
         
         if not image_url:
             # Fallback: Find first large image in article body

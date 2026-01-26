@@ -250,6 +250,12 @@
       "type": "boolean",
       "description": "Setting this to true bypasses external API calls (Brave/OpenAI), enabling zero-cost testing. **DO NOT ENABLE IN PRODUCTION.**",
       "default": false
+    },
+    "enableImageBackfill": {
+      "title": "Enable Image Backfill (Brave Search)",
+      "type": "boolean",
+      "description": "If enabled, uses Brave Image Search to find images for articles that lack them. Incurs API costs.",
+      "default": true
     }
   },
   "required": [

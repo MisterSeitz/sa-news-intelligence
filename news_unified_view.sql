@@ -1,89 +1,79 @@
--- Unified News View for Visita Intelligence
--- Aggregates data from general news, crime incidents, sports, and politics into a single queryable view.
+-- Create a Unified View for News Intelligence
+-- Aggregates data from:
+-- 1. crime_intelligence.incidents
+-- 2. ai_intelligence.entries (General News)
+-- 3. gov_intelligence.election_news
+-- 4. sports_intelligence.news
 
-CREATE OR REPLACE VIEW news_unified_view AS
+create or replace view public.news_unified_view as
 
--- 1. General News (ai_intelligence.entries)
-SELECT 
-    id,
+-- 1. Crime Intelligence
+select 
+    id::text as id,
     title,
     summary,
-    content,
+    created_at as published_at,
+    source as source_url,
+    data->>'image_url' as image_url,
+    'Crime' as category,
+    'High Urgency' as sentiment, -- Default for crime
+    severity as risk_level,
+    'crime_intelligence.incidents' as origin_table
+from crime_intelligence.incidents
+
+union all
+
+-- 2. General News (Entries)
+select 
+    id::text as id,
+    title,
+    summary,
     published_date as published_at,
-    CASE 
-        WHEN canonical_url IS NOT NULL THEN canonical_url
-        ELSE (data->>'url') 
-    END as source_url,
-    (data->>'image_url') as image_url,
+    url as source_url,
+    data->>'image_url' as image_url,
     category,
     sentiment_label as sentiment,
-    COALESCE(sentiment_score, 0) as sentiment_score,
-    'general' as origin_type,
-    'ai_intelligence.entries' as origin_table,
-    created_at
-FROM ai_intelligence.entries
+    'Info' as risk_level,
+    'ai_intelligence.entries' as origin_table
+from ai_intelligence.entries
+where category != 'Crime' -- Avoid duplicates if crime is double-logged
 
-UNION ALL
+union all
 
--- 2. Crime Incidents (crime_intelligence.incidents)
-SELECT 
-    id,
-    title,
-    description as summary,
-    full_text as content,
-    published_at,
-    source_url,
-    image_url, -- Ensure this column exists or use NULL if not yet added to schema
-    type as category,
-    CASE 
-        WHEN severity_level >= 3 THEN 'High Urgency'
-        WHEN severity_level = 2 THEN 'Moderate Urgency'
-        ELSE 'Low Urgency'
-    END as sentiment,
-    (severity_level * 3.33) as sentiment_score, -- Normalize 1-3 to roughly 0-10 scale
-    'crime' as origin_type,
-    'crime_intelligence.incidents' as origin_table,
-    created_at
-FROM crime_intelligence.incidents
-
-UNION ALL
-
--- 3. Election News (gov_intelligence.election_news)
-SELECT 
-    id,
+-- 3. Election News
+select 
+    id::text as id,
     title,
     summary,
-    content,
     published_at,
-    source_url,
+    url as source_url,
     image_url,
     'Politics' as category,
     sentiment,
-    0 as sentiment_score, -- Needs calculation or mapping if needed
-    'politics' as origin_type,
-    'gov_intelligence.election_news' as origin_table,
-    created_at
-FROM gov_intelligence.election_news
+    'Info' as risk_level,
+    'gov_intelligence.election_news' as origin_table
+from gov_intelligence.election_news
 
-UNION ALL
+union all
 
--- 4. Sports News (sports_intelligence.news)
-SELECT 
-    id,
+-- 4. Sports News
+select 
+    id::text as id,
     title,
     summary,
-    NULL as content, -- Sports news often lacks full content in this table
     published_at,
     url as source_url,
-    (structured_data->>'image_url') as image_url,
-    category,
-    (structured_data->>'sentiment_label') as sentiment,
-    sentiment_score,
-    'sports' as origin_type,
-    'sports_intelligence.news' as origin_table,
-    created_at
-FROM sports_intelligence.news;
+    structured_data->>'image_url' as image_url,
+    'Sports' as category,
+    case 
+        when sentiment_score > 7 then 'High Excitement' 
+        else 'General' 
+    end as sentiment,
+    'Info' as risk_level,
+    'sports_intelligence.news' as origin_table
+from sports_intelligence.news;
 
--- Permissions (Adjust as needed)
-GRANT SELECT ON news_unified_view TO authenticated;
-GRANT SELECT ON news_unified_view TO service_role;
+-- Permissions
+grant select on public.news_unified_view to authenticated;
+grant select on public.news_unified_view to anon;
+grant select on public.news_unified_view to service_role;

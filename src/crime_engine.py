@@ -7,83 +7,11 @@ import httpx
 from bs4 import BeautifulSoup
 from supabase import create_client, Client
 
+from search_client import BraveSearchClient
+
 logger = logging.getLogger(__name__)
 
-class BraveSearchClient:
-    """
-    Manages Brave API interaction with key rotation logic.
-    Prioritizes Free Tiers (Search/AI) -> Paid Tier (Base).
-    """
-    def __init__(self):
-        self.keys = {
-            "search": os.getenv("BRAVE_SEARCH_API"), # 2000 free
-            "ai": os.getenv("BRAVE_AI_API"),         # 2000 free
-            "base": os.getenv("BRAVE_BASE_API")      # Paid
-        }
-        self.usage = {
-            "search": 0,
-            "ai": 0,
-            "base": 0
-        }
-        self.limit = 2000
-        self.base_url = "https://api.search.brave.com/res/v1/web/search"
 
-    async def search(self, query: str, count: int = 10) -> List[Dict]:
-        """
-        Executes a search using the best available API key.
-        """
-        api_key, key_type = self._get_best_key()
-        if not api_key:
-            logger.error("❌ No Brave API keys available or limits reached.")
-            return []
-
-        headers = {
-            "Accept": "application/json",
-            "Accept-Encoding": "gzip",
-            "X-Subscription-Token": api_key
-        }
-        
-        # Brave Search params: q=query, count=count
-        params = {"q": query, "count": min(count, 20)}
-
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(self.base_url, headers=headers, params=params, timeout=10.0)
-                
-                if resp.status_code == 200:
-                    self.usage[key_type] += 1
-                    data = resp.json()
-                    # Brave returns 'web' -> 'results'
-                    return data.get("web", {}).get("results", [])
-                elif resp.status_code == 429:
-                    logger.warning(f"⚠️ Rate limit hit for {key_type}. Switching...")
-                    # Force usage to limit to trigger switch
-                    self.usage[key_type] = self.limit + 1
-                    # Retry once recursively
-                    return await self.search(query, count)
-                else:
-                    logger.error(f"Brave API Error ({resp.status_code}): {resp.text}")
-                    return []
-        except Exception as e:
-            logger.error(f"Brave Request Failed: {e}")
-            return []
-
-    def _get_best_key(self) -> (str, str):
-        # 1. Try Search API (Free)
-        if self.keys["search"] and self.usage["search"] < self.limit:
-            return self.keys["search"], "search"
-        
-        # 2. Try AI API (Free) used as Search backup? 
-        # Note: Brave AI API is usually for summarization, but user listed it as a key resource.
-        # Use it if it works for search endpoints (keys are often fungible on some plans, or we assume it's a second standard key)
-        if self.keys["ai"] and self.usage["ai"] < self.limit:
-            return self.keys["ai"], "ai"
-            
-        # 3. Fallback to Paid Base API
-        if self.keys["base"]:
-            return self.keys["base"], "base"
-            
-        return None, None
 
 class CrimeIntelligenceEngine:
     def __init__(self, ingestor, extractor):

@@ -7,6 +7,9 @@ from supabase import create_client, Client
 from postgrest.base_request_builder import APIResponse
 
 # Configure logging
+
+from search_client import BraveSearchClient
+
 logger = logging.getLogger(__name__)
 
 class SupabaseIngestor:
@@ -15,10 +18,11 @@ class SupabaseIngestor:
     """
 
 
-    def __init__(self, url: str = None, key: str = None, webhook_url: str = None):
+    def __init__(self, url: str = None, key: str = None, webhook_url: str = None, enable_backfill: bool = True):
         self.url = url or os.getenv("SUPABASE_URL")
         self.key = key or os.getenv("SUPABASE_SERVICE_ROLE_KEY") # Prefer Service Role for ingestion
         self.webhook_url = webhook_url
+        self.enable_backfill = enable_backfill
         
         if not self.url or not self.key:
             logger.error("Supabase credentials missing. Ingestion will fail.")
@@ -31,6 +35,9 @@ class SupabaseIngestor:
             except Exception as e:
                 logger.error(f"Failed to connect to Supabase: {e}")
                 self.supabase = None
+        
+        # Initialize Search Client for Backfilling
+        self.search_client = BraveSearchClient()
 
     async def ingest(self, analysis_result: Dict[str, Any], raw_data: Dict[str, Any]):
         """
@@ -234,7 +241,23 @@ class SupabaseIngestor:
 
         # Add Image URL if available (handled differently per table, but good to have in base if possible)
         # Note: 'entries' schema has data jsonb, others might have image_url column.
+        # Add Image URL if available (handled differently per table, but good to have in base if possible)
+        # Note: 'entries' schema has data jsonb, others might have image_url column.
         image_url = raw.get("image_url")
+        
+        # BACKFILL STRATEGY: If no image found by scraper, try Brave Image Search
+        if not image_url and raw.get("title") and self.enable_backfill:
+             logger.info(f"🖼️ Missing image for '{raw.get('title')}'. Attempting backfill...")
+             try:
+                 images = await self.search_client.search_images(query=raw.get("title"), count=1)
+                 if images:
+                     image_url = images[0].get("thumbnail", {}).get("src") or images[0].get("url")
+                     logger.info(f"✅ Backfilled image: {image_url}")
+                     # Update raw for downstream use if needed, though local var is used below
+                     raw["image_url"] = image_url
+             except Exception as e:
+                 logger.warning(f"Failed to backfill image: {e}")
+
         if image_url:
              # If table has image_url column (check schema.md)
              # election_news: yes

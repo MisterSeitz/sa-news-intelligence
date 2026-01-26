@@ -91,7 +91,8 @@ async def main():
         extractor = IntelligenceExtractor(base_url=ali_url, model=ali_model)
         
         webhook_url = actor_input.get("webhookUrl")
-        ingestor = SupabaseIngestor(webhook_url=webhook_url)     # Relies on Env Vars
+        enable_backfill = actor_input.get("enableImageBackfill", True)
+        ingestor = SupabaseIngestor(webhook_url=webhook_url, enable_backfill=enable_backfill)     # Relies on Env Vars
         
         # 3b. Check for Crime Intelligence Mode
         if run_mode == "crime_intelligence":
