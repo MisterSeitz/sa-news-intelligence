@@ -125,8 +125,10 @@ class NewsScraper:
                 if len(link) < 25: continue # Too short to be deep article
                 
                 # Exclude common non-article paths
+                # Exclude common non-article paths
                 exclude = ["/category/", "/author/", "/tag/", "/section/", "/contact", "/about", "/login", "/register", "javascript:", "#", 
-                           "business-maverick", "maverick-life", "maverick-citizen", "maverick-sports", "/opinion/"]
+                           "business-maverick", "maverick-life", "maverick-citizen", "maverick-sports", "/opinion/",
+                           "cookie", "policy", "terms", "privacy", "legal", "subscription", "advertise", "newsletter", "sitemap"]
                 if any(x in link.lower() for x in exclude):
                     continue
                 
