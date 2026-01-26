@@ -15,21 +15,19 @@ class IntelligenceExtractor:
 
     # Alibaba Cloud Qwen models (Prioritized by capability then cost)
     ALIBABA_MODEL_LIST = [
-        "qwen3-coder-plus",    # Latest Qwen3 Coding Specialist
-        "qwen-coder-plus",     # Qwen2.5 Coding Specialist
-        "qwen-plus",           # Good balance of speed and quality
-        "qwen-turbo",          # Fast, cost-effective
-        "qwen-max",            # High intelligence
-        "qwen-long",           # Long context fallback
+        "qwen3-coder-plus",    # Coding Plan Primary Model
+        "qwen-coder-plus",     # Fallback
+        "qwen-plus",           
+        "qwen-max",            
     ]
 
     # Free/OpenRouter model strategy list (Prioritized by user preference)
     FREE_MODEL_LIST = [
-        "qwen/qwen3-coder-480b-a35b-instruct",# Qwen3 on OpenRouter
-        "meta-llama/llama-3.3-70b-instruct",  # Robust generalist
-        "google/gemma-3-27b-it",              # Good structured output
-        "deepseek/deepseek-r1-0528",          # Strong reasoning
-        "z-ai/glm-4.5-air",                   # Agentic/Thinking capability
+        "google/gemini-2.0-flash-exp:free",   # High speed & quality
+        "qwen/qwen3-coder:free",              # Strong coding/logic
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "deepseek/deepseek-r1:free",
+        "nvidia/nemotron-3-nano-30b:free",
     ]
 
     def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None, model: Optional[str] = None):
@@ -40,7 +38,8 @@ class IntelligenceExtractor:
         
         # 1. Alibaba Setup
         self.ali_key = os.getenv("ALIBABA_CLOUD_API_KEY")
-        self.ali_url = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+        # Coding Plan Enpoint
+        self.ali_url = "https://coding-intl.dashscope.aliyuncs.com/v1"
         self.ali_client = OpenAI(api_key=self.ali_key, base_url=self.ali_url) if self.ali_key else None
         
         # 2. OpenRouter/Fallback Setup
@@ -59,26 +58,26 @@ class IntelligenceExtractor:
     def _get_provider_plans(self) -> List[Dict[str, Any]]:
         """
         Returns a list of (client, model_list) pairs to try in order.
+        Always falls back to free models if primary fails.
         """
         plans = []
         
-        # Handle specific model override
+        # 1. Specific Model Override (if provided)
         if self.model_override:
-            # Detect which provider the override belongs to
             if "qwen3-coder" in self.model_override or "qwen-coder" in self.model_override or self.model_override.startswith("qwen-"):
                 if self.ali_client: plans.append({"client": self.ali_client, "models": [self.model_override]})
+                # Also try OpenRouter version of override
                 if self.fallback_client: plans.append({"client": self.fallback_client, "models": [f"qwen/{self.model_override}" if "/" not in self.model_override else self.model_override]})
             else:
                 if self.fallback_client: plans.append({"client": self.fallback_client, "models": [self.model_override]})
-            return plans
 
-        # Standard Fallback logic: Try Primary then Secondary
-        if self.is_alibaba_primary:
-            if self.ali_client: plans.append({"client": self.ali_client, "models": self.ALIBABA_MODEL_LIST})
-            if self.fallback_client: plans.append({"client": self.fallback_client, "models": self.FREE_MODEL_LIST})
-        else:
-            if self.fallback_client: plans.append({"client": self.fallback_client, "models": self.FREE_MODEL_LIST})
-            if self.ali_client: plans.append({"client": self.ali_client, "models": self.ALIBABA_MODEL_LIST})
+        # 2. Alibaba Primary (if configured)
+        if self.is_alibaba_primary and self.ali_client:
+            plans.append({"client": self.ali_client, "models": self.ALIBABA_MODEL_LIST})
+
+        # 3. OpenRouter Free Fallback (ALWAYS include as final safety net)
+        if self.fallback_client: 
+            plans.append({"client": self.fallback_client, "models": self.FREE_MODEL_LIST})
             
         return plans
 
@@ -218,13 +217,18 @@ class IntelligenceExtractor:
         return base_prompt + f"""
         Extract the following fields into a valid JSON object:
         1. **sentiment**: "High Urgency", "Moderate Urgency", or "Low Urgency".
-        2. **category**: General category (e.g. "Politics", "Crime", "Business").
+        2. **category**: The MOST accurate category for this article. 
+           - CRITICAL: Verify the 'Category Hint' ({category_hint}). If the article is actually a Car Review, Product Launch, or Motoring News, change category to "Motoring" even if the hint says "Business".
+           - Options: "Politics", "Crime", "Business", "Motoring", "Sports", "Tech", "Entertainment", "Health".
         3. **niche_category**: ONE of ["Sports", "Politics", "Real Estate", "Gaming", "FoodTech", "Web3", "VC", "Cybersecurity", "Health", "Markets", "General", "Crime", "Motoring", "Energy", "Semiconductors", "Logistics", "ClimateTech"].
-        4. **summary**: A concise 1-paragraph summary.
-        5. **entities**: List of KEY people and organizations (max 8). 
+        4. **tags**: A list of tags describing the TYPE of content. 
+           - Examples: ["Review", "Opinion", "Analysis", "Breaking", "Press Release", "Interview", "Feature"].
+           - If it is a product review (especially cars/tech), MUST include "Review".
+        5. **summary**: A concise 1-paragraph summary.
+        6. **entities**: List of KEY people and organizations (max 8). 
            Format: {{"name": "...", "type": "Politician"|"Athlete"|"Businessperson"|"Civilian"|"Organization"|"Company"|"GovernmentBody"}}
-        6. **locations**: A list of specific physical locations mentioned (e.g. "Cape Town", "Sandton", "N1 Highway").
-        7. **niche_data**: {{
+        7. **locations**: A list of specific physical locations mentioned (e.g. "Cape Town", "Sandton", "N1 Highway").
+        8. **niche_data**: {{
             {specific_instructions if specific_instructions else "Generic metadata relevant to the article."}
         }}
         
