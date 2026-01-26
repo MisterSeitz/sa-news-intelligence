@@ -20,7 +20,7 @@ class BriefingEngine:
     def __init__(self, ingestor, extractor, template_id: Optional[str] = None):
         self.ingestor = ingestor
         self.extractor = extractor
-        self.template_id = template_id or os.getenv("HEYGEN_TEMPLATE_ID")
+        self.template_id = template_id or os.getenv("HEYGEN_TEMPLATE_ID") or "4c6612c766e94908a2cb3f0d61192bd0"
         self.base_url = "https://api.heygen.com"
         
         # Check keys

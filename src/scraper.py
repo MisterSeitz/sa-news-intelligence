@@ -68,7 +68,7 @@ class NewsScraper:
             return {"error": str(e)}
         # No finally block needed for page.close() as context.close() handles it
 
-    async def get_article_links(self, start_url: str, max_links: int = 5) -> List[str]:
+    async def get_article_links(self, start_url: str, max_links: int = 5, priority_keywords: List[str] = []) -> List[str]:
         """
         Crawls a section/archive page to find individual article URLs.
         """
@@ -155,10 +155,30 @@ class NewsScraper:
 
         except Exception as e:
             logger.error(f"Error crawling {start_url}: {e}")
-        finally:
-            await context.close()
             
-        return list(links)[:max_links]
+        await context.close()
+        
+        all_links = list(links)
+        
+        # Priority Logic: Sort by keywords
+        if priority_keywords:
+            def priority_score(url):
+                score = 0
+                lower_url = url.lower()
+                for k in priority_keywords:
+                    if k.lower() in lower_url:
+                        score += 1
+                return score
+            
+            # Sort descending by score
+            all_links.sort(key=priority_score, reverse=True)
+            
+            # Log successful boosting
+            high_pri = [l for l in all_links if priority_score(l) > 0]
+            if high_pri:
+                logger.info(f"🔝 Boosted {len(high_pri)} relevant URLs (e.g. {high_pri[0]})")
+
+        return all_links[:max_links]
 
     def _extract_content(self, html_content: str, url: str) -> Dict[str, Optional[str]]:
         """

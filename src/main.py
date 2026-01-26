@@ -2,6 +2,8 @@ import csv
 import asyncio
 import logging
 from apify import Actor
+import random
+import math
 from .scraper import NewsScraper
 from .extractor import IntelligenceExtractor
 from .ingestor import SupabaseIngestor
@@ -116,9 +118,36 @@ async def main():
                 logger.error("❌ BriefingEngine unavailable.")
                 return
 
-        logger.info(f"✅ Loaded {len(target_sources)} sources to process.")
+        if run_mode == "news_scraper":
+             # 3d. Apply Diversity Logic
+             # Shuffle to avoid alphabetical bias
+             random.shuffle(target_sources)
+             logger.info("🔀 Shuffled sources for diversity.")
+             
+             # Calculate Smart Limits
+             global_max_articles = actor_input.get("maxArticles", 50)
+             user_max_per_source = actor_input.get("maxArticlesPerSource", 5)
+             source_count = len(target_sources)
+             
+             if source_count > 0:
+                 # Distribute global limit across sources (at least 1 per source if possible)
+                 smart_limit = math.ceil(global_max_articles / source_count)
+                 # Respect user's max_per_source if it's lower
+                 final_per_source_limit = min(user_max_per_source, smart_limit)
+                 # Ensure at least 1 if global max allows
+                 if final_per_source_limit < 1 and global_max_articles > 0: final_per_source_limit = 1
+             else:
+                 final_per_source_limit = user_max_per_source
 
-        max_per_source = actor_input.get("maxArticlesPerSource", 5)
+             logger.info(f"⚖️  Smart Limit: {final_per_source_limit} articles/source (Global: {global_max_articles}, Sources: {source_count})")
+        else:
+             # Other modes (like crime) might differ, but safe defaults
+             global_max_articles = 1000
+             final_per_source_limit = actor_input.get("maxArticlesPerSource", 5)
+
+        logger.info(f"✅ Loaded {len(target_sources)} sources to process.")
+        
+        total_articles_processed = 0
         
         # 4. Execution Loop
         async with NewsScraper(headless=True) as scraper:
@@ -130,8 +159,16 @@ async def main():
                 
                 logger.info(f"🌍 Processing Source: {source.get('Source')} - {category} ({source_url})")
                 
+                
+                # Check Global Limit
+                if total_articles_processed >= global_max_articles:
+                    logger.info(f"🛑 Global Limit Reached ({total_articles_processed}/{global_max_articles}). Stopping.")
+                    break
+
                 # 4a. Crawl for Article Links
-                article_links = await scraper.get_article_links(source_url, max_links=max_per_source)
+                # Pass priority keywords for SA Context
+                keywords = ["africa", "brics", "south africa", "gauteng", "cape", "zuma", "ramaphosa"]
+                article_links = await scraper.get_article_links(source_url, max_links=final_per_source_limit, priority_keywords=keywords)
                 
                 logger.info(f"🕷️  Source {source.get('Source')} yielded {len(article_links)} articles.")
                 
@@ -166,6 +203,10 @@ async def main():
                     
                     # Ingest
                     await ingestor.ingest(analysis, result)
+                    
+                    total_articles_processed += 1
+                    if total_articles_processed >= global_max_articles:
+                        break
 
 if __name__ == "__main__":
     asyncio.run(main())
