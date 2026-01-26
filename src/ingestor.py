@@ -274,20 +274,12 @@ class SupabaseIngestor:
         if niche_data:
              # For niche tables (real_estate, etc.), they use 'snippet_sources' as a JSON dump
              if target_table in ["real_estate", "gaming", "web3", "cybersecurity", "health_fitness", "foodtech", "venture_capital", "energy_transition", "semiconductors", "logistics_supply_chain", "climate_tech"]:
-                  data["snippet_sources"] = niche_data # Using snippet_sources as JSON dump for specialized fields
-                  
+                  data["snippet_sources"] = niche_data 
+
              if target_table == "motoring":
-                  # Motoring might likely use snippet_sources too, or dedicated columns if the user added them.
-                  # Given the request "standard ai_intelligence fields (url, ai_summary, snippet_sources) plus specialized JSONB/Text columns for their niche",
-                  # we can put specifics in niche_data (snippet_sources) OR if there are dedicated columns like 'brand', we let Supabase handle extraction 
-                  # OR we put it in snippet_sources.
-                  # For safety and flexibility, we put it in snippet_sources (which is JSONB).
                   data["snippet_sources"] = niche_data
 
-
-        # Add Image URL if available (handled differently per table, but good to have in base if possible)
-        # Note: 'entries' schema has data jsonb, others might have image_url column.
-        # Add Image URL if available (handled differently per table, but good to have in base if possible)
+        # Add Image URL if available
         # Note: 'entries' schema has data jsonb, others might have image_url column.
         image_url = raw.get("image_url")
         
@@ -305,13 +297,10 @@ class SupabaseIngestor:
                  logger.warning(f"Failed to backfill image: {e}")
 
         if image_url:
-             # If table has image_url column (check schema.md)
-             # election_news: yes
-             # news (sports): no, uses structured_data? or just add to json? 
-             # entries: no, add to data jsonb
+             # If table has image_url column, handled by mapping or add to data
              pass
 
-     async def upload_briefing_video(self, video_url: str, filename: str):
+    async def upload_briefing_video(self, video_url: str, filename: str):
         """
         Downloads video from temporary HeyGen URL and uploads to Supabase Storage.
         """
