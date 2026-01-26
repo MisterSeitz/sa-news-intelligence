@@ -50,10 +50,24 @@ class ImageBackfiller:
             
             query_builder = self.supabase.schema(schema_name).table(table_name)
             
+            query_builder = self.supabase.schema(schema_name).table(table_name)
+            
+            # JSONB Column Mapping
+            # entries -> data
+            # sports -> structured_data
+            # energy, nuclear -> snippet_sources
+            jsonb_col = None
             if table_name == "entries":
-                # For entries, checks data->>image_url
-                res = query_builder.select("id, title, data")\
-                    .is_("data->image_url", "null")\
+                jsonb_col = "data"
+            elif table_name == "news" and schema_name == "sports_intelligence":
+                jsonb_col = "structured_data"
+            elif table_name in ["energy", "nuclear_energy"]:
+                jsonb_col = "snippet_sources"
+            
+            if jsonb_col:
+                # JSONB Query
+                res = query_builder.select(f"id, title, {jsonb_col}")\
+                    .is_(f"{jsonb_col}->image_url", "null")\
                     .order("created_at", desc=True)\
                     .limit(limit)\
                     .execute()
@@ -94,13 +108,25 @@ class ImageBackfiller:
                 
                 query_builder = self.supabase.schema(schema_name).table(table_name)
 
+                query_builder = self.supabase.schema(schema_name).table(table_name)
+
+                # Determine JSONB column again
+                jsonb_col = None
                 if table_name == "entries":
+                    jsonb_col = "data"
+                elif table_name == "news" and schema_name == "sports_intelligence":
+                    jsonb_col = "structured_data"
+                elif table_name in ["energy", "nuclear_energy"]:
+                    jsonb_col = "snippet_sources"
+
+                if jsonb_col:
                     # Update JSONB
-                    current_data = row.get("data", {}) or {}
+                    # We need to fetch current data first? We already have it in 'row' if we selected it.
+                    # row keys: id, title, [jsonb_col]
+                    current_data = row.get(jsonb_col, {}) or {}
                     current_data["image_url"] = image_url
                     current_data["backfilled"] = True
-                    # Check if 'data' is top level column or inside a jsonb? It's a jsonb column "data"
-                    query_builder.update({"data": current_data}).eq("id", row["id"]).execute()
+                    query_builder.update({jsonb_col: current_data}).eq("id", row["id"]).execute()
                 else:
                     # Update Column
                     query_builder.update({"image_url": image_url}).eq("id", row["id"]).execute()
