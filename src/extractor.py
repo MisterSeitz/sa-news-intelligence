@@ -178,14 +178,26 @@ class IntelligenceExtractor:
              - "launch_date": If new car launch
              """
 
-        elif "Energy" in category_hint or "Power" in category_hint:
+        elif "Energy" in category_hint or "Power" in category_hint or "Nuclear" in category_hint:
              specific_instructions = """
-             **ENERGY TRANSITION MODE**
-             Extract the following into a 'niche_data' object:
-             - "energy_type": "Solar" | "Wind" | "Coal" | "Nuclear" | "Grid"
-             - "capacity_mw": Megawatts mentioned
-             - "project_name": Specific project name
-             - "location": Project location
+             **ENERGY & NUCLEAR INTELLIGENCE MODE**
+             Determine if this is "Nuclear" specific or "General Energy".
+             
+             If NUCLEAR (Keywords: Koeberg, Rosatom, Westinghouse, SMR, Thyspunt, NNR):
+             Extract into 'niche_data':
+             - "energy_table": "nuclear_energy"
+             - "technology": "SMR" | "PWR" | "Large React" | "General"
+             - "status": "Planned" | "Operational" | "Decommissioned" | "Construction"
+             - "target_year": Year mentioned for completion/shut down
+             - "capacity_mw": Numeric MW
+             
+             If GENERAL ENERGY (Grid, Renewables, Coal, Storage):
+             Extract into 'niche_data':
+             - "energy_table": "energy"
+             - "subniche": "Grid" | "Renewables" | "Storage" | "Hydrogen" | "Policy" | "Market Pricing"
+             - "project_name": Name of project/plant
+             - "location": Location
+             - "capacity_mw": Numeric MW
              """
 
         elif "Semiconductor" in category_hint or "Chip" in category_hint:

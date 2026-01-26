@@ -242,7 +242,13 @@ class SupabaseIngestor:
         
         # NEW VERTICALS
         elif niche == "Energy":
-            target_table = "energy_transition"
+            # Dynamic routing based on extractor hint
+            n_data = analysis.get("niche_data", {})
+            if n_data.get("energy_table") == "nuclear_energy":
+                target_table = "nuclear_energy"
+            else:
+                target_table = "energy" # General energy table
+                
         elif niche == "Semiconductors":
             target_table = "semiconductors"
         elif niche == "Logistics":
@@ -273,7 +279,7 @@ class SupabaseIngestor:
         niche_data = analysis.get("niche_data")
         if niche_data:
              # For niche tables (real_estate, etc.), they use 'snippet_sources' as a JSON dump
-             if target_table in ["real_estate", "gaming", "web3", "cybersecurity", "health_fitness", "foodtech", "venture_capital", "energy_transition", "semiconductors", "logistics_supply_chain", "climate_tech"]:
+             if target_table in ["real_estate", "gaming", "web3", "cybersecurity", "health_fitness", "foodtech", "venture_capital", "energy", "nuclear_energy", "semiconductors", "logistics_supply_chain", "climate_tech"]:
                   data["snippet_sources"] = niche_data 
 
              if target_table == "motoring":
