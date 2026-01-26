@@ -51,7 +51,13 @@ async def main():
                 logger.info("🧹 Mode: Historical Image Backfill Enabled.")
                 backfiller = ImageBackfiller()
                 # Run for key tables
-                tables = ["entries", "gov_intelligence.election_news", "sports_intelligence.news"]
+                tables = [
+                    "ai_intelligence.entries", 
+                    "gov_intelligence.election_news", 
+                    "sports_intelligence.news",
+                    "ai_intelligence.energy",
+                    "ai_intelligence.nuclear_energy"
+                ]
                 for t in tables:
                     await backfiller.process_batch(t, limit=100) # Increased limit for manual run
                 logger.info("✅ Historical Backfill Complete. Exiting.")

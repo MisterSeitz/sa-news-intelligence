@@ -34,30 +34,42 @@ class ImageBackfiller:
         logger.info(f"🔎 Scanning table '{table}' for missing images (Limit: {limit})...")
         
         # 1. Fetch rows where image_url is null
-        # Note: 'entries' uses data->>image_url often, but let's check standard columns first.
-        # Adjust query based on table schema.
+        # Helper to get table ref with schema
         try:
-            if table == "entries":
-                # For entries, image_url might be in the 'data' jsonb col or a top level col? 
-                # Unified view uses data->>image_url. Let's assume we check data->image_url is null
-                res = self.supabase.table(table).select("id, title, data")\
+            query = None
+            schema_name = "public"
+            table_name = table
+            
+            if "." in table:
+                parts = table.split(".")
+                schema_name = parts[0]
+                table_name = parts[1]
+            
+            # Use schema() modifier if not public, or just explicit
+            # Note: supabase-py usage: client.schema("s").table("t")
+            
+            query_builder = self.supabase.schema(schema_name).table(table_name)
+            
+            if table_name == "entries":
+                # For entries, checks data->>image_url
+                res = query_builder.select("id, title, data")\
                     .is_("data->image_url", "null")\
                     .order("created_at", desc=True)\
                     .limit(limit)\
                     .execute()
             else:
                 # Standard column
-                res = self.supabase.table(table).select("id, title, image_url")\
+                res = query_builder.select("id, title, image_url")\
                     .is_("image_url", "null")\
                     .order("created_at", desc=True)\
                     .limit(limit)\
                     .execute()
                     
             rows = res.data
-            logger.info(f"found {len(rows)} records to process.")
+            logger.info(f"found {len(rows)} records to process in {schema_name}.{table_name}.")
             
             for row in rows:
-                await self._backfill_row(table, row)
+                await self._backfill_row(table, row) # Pass full identifier for updates
                 
         except Exception as e:
             logger.error(f"Error fetching rows: {e}")
@@ -74,15 +86,24 @@ class ImageBackfiller:
                 logger.info(f"   ✅ Found: {image_url}")
                 
                 # Update DB
-                if table == "entries":
+                # Prepare Update Query
+                schema_name = "public"
+                table_name = table
+                if "." in table:
+                    schema_name, table_name = table.split(".")
+                
+                query_builder = self.supabase.schema(schema_name).table(table_name)
+
+                if table_name == "entries":
                     # Update JSONB
                     current_data = row.get("data", {}) or {}
                     current_data["image_url"] = image_url
                     current_data["backfilled"] = True
-                    self.supabase.table(table).update({"data": current_data}).eq("id", row["id"]).execute()
+                    # Check if 'data' is top level column or inside a jsonb? It's a jsonb column "data"
+                    query_builder.update({"data": current_data}).eq("id", row["id"]).execute()
                 else:
                     # Update Column
-                    self.supabase.table(table).update({"image_url": image_url}).eq("id", row["id"]).execute()
+                    query_builder.update({"image_url": image_url}).eq("id", row["id"]).execute()
             else:
                 logger.info("   ❌ No images found.")
         except Exception as e:
