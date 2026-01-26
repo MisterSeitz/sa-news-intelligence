@@ -224,6 +224,14 @@ class SupabaseIngestor:
             "created_at": "now()"
         }
 
+        # Niche Data Injection
+        niche_data = analysis.get("niche_data")
+        if niche_data:
+             # For niche tables (real_estate, etc.), they use 'snippet_sources' as a JSON dump
+             if target_table in ["real_estate", "gaming", "web3", "cybersecurity", "health_fitness", "foodtech", "venture_capital"]:
+                 data["snippet_sources"] = niche_data
+
+
         # Add Image URL if available (handled differently per table, but good to have in base if possible)
         # Note: 'entries' schema has data jsonb, others might have image_url column.
         image_url = raw.get("image_url")
@@ -285,7 +293,13 @@ class SupabaseIngestor:
 
             # Entries: Add image_url to data jsonb
             if image_url:
-                 data["data"] = {"image_url": image_url}
+                 if "data" not in data: data["data"] = {}
+                 data["data"]["image_url"] = image_url
+            
+            # Entries: Add niche_data to data jsonb
+            if niche_data:
+                 if "data" not in data: data["data"] = {}
+                 data["data"]["niche_data"] = niche_data
 
 
         # Niche tables often use 'raw_context_source' or 'markdown_content'

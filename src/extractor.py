@@ -94,23 +94,87 @@ class IntelligenceExtractor:
         # Limit content to avoid context window issues/costs (approx 4000 tokens)
         truncated_content = content[:12000]
 
-        prompt = f"""
+        # Schema-Specific Prompting
+        category_hint = article_data.get("csv_category", "General")
+        
+        base_prompt = f"""
         Analyze the following news article text and extract structured intelligence for a South African civic database.
         
         Article: "{article_data.get('title', 'Unknown')}"
         Date: "{article_data.get('published_date', 'Unknown')}"
         Content: "{truncated_content}"
+        
+        Category Hint: {category_hint}
+        """
 
+        # Define specialized requirements based on category
+        specific_instructions = ""
+        
+        if "Crime" in category_hint or "Courts" in category_hint:
+             specific_instructions = """
+             **CRIME INTELLIGENCE MODE**
+             Extract the following into a 'niche_data' object:
+             - "incident_type": Specific crime (e.g. "Armed Robbery", "Fraud", "Poaching")
+             - "weapon": Weapon used if mentioned (e.g. "9mm pistol", "AK47", "Knife")
+             - "suspects_count": Integer estimation
+             - "station": SAPS Station mentioned (e.g. "Hillbrow SAPS")
+             - "case_number": CAS number if available
+             - "courts": Court names mentioned
+             """
+             
+        elif "Politics" in category_hint or "Government" in category_hint:
+             specific_instructions = """
+             **POLITICAL INTELLIGENCE MODE**
+             Extract the following into a 'niche_data' object:
+             - "politicians": List of politician names involved
+             - "parties": List of political parties involved (ANC, DA, EFF, MK, etc.)
+             - "corruption_risk": Boolean (True if corruption/fraud/irregularity allegated)
+             - "policy_areas": List of policy topics (e.g. "NHI", "Land Reform", "Education")
+             """
+
+        elif "Business" in category_hint or "Economy" in category_hint or "Markets" in category_hint:
+             specific_instructions = """
+             **BUSINESS INTELLIGENCE MODE**
+             Extract the following into a 'niche_data' object:
+             - "companies": List of company names
+             - "tickers": Stock tickers if public (e.g. "JSE:NPN")
+             - "deal_value_zar": Monetary value involved (estimate numeric)
+             - "sector": Industry sector
+             - "market_sentiment": "Bullish" | "Bearish" | "Neutral"
+             """
+
+        elif "Health" in category_hint:
+             specific_instructions = """
+             **HEALTH INTELLIGENCE MODE**
+             Extract the following into a 'niche_data' object:
+             - "disease": Disease or condition mentioned
+             - "outbreak_location": Specific area of outbreak
+             - "hospital_status": Status of facilities
+             - "stats": Key statistics (cases, deaths, recoveries)
+             """
+             
+        elif "Sport" in category_hint:
+             specific_instructions = """
+             **SPORTS INTELLIGENCE MODE**
+             Extract the following into a 'niche_data' object:
+             - "sport": Sport name (Rugby, Cricket, Soccer)
+             - "teams": Teams involved
+             - "match_result": Score or outcome if applicable.
+             - "key_players": Players mentioned
+             """
+
+        prompt = base_prompt + f"""
         Extract the following fields into a valid JSON object:
         1. **sentiment**: "High Urgency", "Moderate Urgency", or "Low Urgency".
         2. **category**: General category (e.g. "Politics", "Crime", "Business").
-        3. **niche_category**: ONE of ["Sports", "Politics", "Real Estate", "Gaming", "FoodTech", "Web3", "VC", "Cybersecurity", "Health", "Markets", "General"].
+        3. **niche_category**: ONE of ["Sports", "Politics", "Real Estate", "Gaming", "FoodTech", "Web3", "VC", "Cybersecurity", "Health", "Markets", "General", "Crime"].
         4. **summary**: A concise 1-paragraph summary.
         5. **entities**: List of KEY people and organizations (max 8). 
            Format: {{"name": "...", "type": "Politician"|"Athlete"|"Businessperson"|"Civilian"|"Organization"|"Company"|"GovernmentBody"}}
-           IMPORTANT: Do NOT include cities, countries, or physical locations here (e.g. "Johannesburg"). Use the 'locations' field for those. Only include "GovernmentBody" if it refers to the administration (e.g. "City of Johannesburg").
-        6. **incidents**: If a crime/disaster/protest occurred, describe it. Format: {{"type": "...", "date": "...", "description": "..."}} (or null).
-        7. **locations**: A list of specific physical locations mentioned (e.g. "Cape Town", "Sandton", "N1 Highway").
+        6. **locations**: A list of specific physical locations mentioned (e.g. "Cape Town", "Sandton", "N1 Highway").
+        7. **niche_data**: {{
+            {specific_instructions if specific_instructions else "Generic metadata relevant to the article."}
+        }}
         
         JSON OUTPUT ONLY.
         """
