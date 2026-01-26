@@ -15,94 +15,81 @@ class IntelligenceExtractor:
 
     # Alibaba Cloud Qwen models (Prioritized by capability then cost)
     ALIBABA_MODEL_LIST = [
+        "qwen3-coder-plus",    # Latest Qwen3 Coding Specialist
+        "qwen-coder-plus",     # Qwen2.5 Coding Specialist
         "qwen-plus",           # Good balance of speed and quality
         "qwen-turbo",          # Fast, cost-effective
         "qwen-max",            # High intelligence
         "qwen-long",           # Long context fallback
     ]
 
-    # Free model strategy list (Prioritized by user preference)
+    # Free/OpenRouter model strategy list (Prioritized by user preference)
     FREE_MODEL_LIST = [
+        "qwen/qwen3-coder-480b-a35b-instruct",# Qwen3 on OpenRouter
         "meta-llama/llama-3.3-70b-instruct",  # Robust generalist
         "google/gemma-3-27b-it",              # Good structured output
-        "tngtech/deepseek-r1t2-chimera",      # Strongest reasoning (671B)
         "deepseek/deepseek-r1-0528",          # Strong reasoning
         "z-ai/glm-4.5-air",                   # Agentic/Thinking capability
-        "tngtech/deepseek-r1t-chimera",       # Balanced efficiency
-        "qwen/qwen3-coder-480b-a35b-instruct",# Good at JSON/Structure
-        "tngtech/r1t-chimera",                # Creative/Storytelling (Last resort)
     ]
 
     def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None, model: Optional[str] = None):
-        # Detect Provider
-        self.is_alibaba = False
-        self.model = model
+        """
+        Initializes with support for multiple providers (Alibaba and OpenRouter).
+        """
+        self.model_override = model
         
-        self.api_key = api_key
-        self.base_url = base_url
+        # 1. Alibaba Setup
+        self.ali_key = os.getenv("ALIBABA_CLOUD_API_KEY")
+        self.ali_url = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+        self.ali_client = OpenAI(api_key=self.ali_key, base_url=self.ali_url) if self.ali_key else None
         
-        if not self.api_key:
-             if os.getenv("ALIBABA_CLOUD_API_KEY"):
-                 self.api_key = os.getenv("ALIBABA_CLOUD_API_KEY")
-                 self.is_alibaba = True
-                 # Default to International endpoint (Singapore)
-                 self.base_url = self.base_url or "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
-             elif os.getenv("OPENROUTER_API_KEY"):
-                 self.api_key = os.getenv("OPENROUTER_API_KEY")
-                 self.base_url = self.base_url or "https://openrouter.ai/api/v1"
-             else:
-                 self.api_key = os.getenv("OPENAI_API_KEY")
-                 self.base_url = self.base_url or "https://openrouter.ai/api/v1" # Default fallback
+        # 2. OpenRouter/Fallback Setup
+        self.fallback_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
+        self.fallback_url = "https://openrouter.ai/api/v1"
+        self.fallback_client = OpenAI(api_key=self.fallback_key, base_url=self.fallback_url) if self.fallback_key else None
         
-        if not self.api_key:
-            logger.warning("No API Key found (ALIBABA/OPENROUTER/OPENAI). Extraction will fail unless in test mode.")
+        # Priority Flags
+        self.is_alibaba_primary = bool(self.ali_key)
         
-        try:
-            if self.api_key:
-                self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
-                logger.info(f"Initialized LLM Client. Alibaba: {self.is_alibaba}, Base: {self.base_url}")
+        if not self.ali_key and not self.fallback_key:
+            logger.warning("No API Keys found (ALIBABA/OPENROUTER/OPENAI). Extraction will fail.")
+        
+        logger.info(f"Initialized Extractor. Alibaba Available: {bool(self.ali_key)}, OpenRouter Available: {bool(self.fallback_key)}")
+
+    def _get_provider_plans(self) -> List[Dict[str, Any]]:
+        """
+        Returns a list of (client, model_list) pairs to try in order.
+        """
+        plans = []
+        
+        # Handle specific model override
+        if self.model_override:
+            # Detect which provider the override belongs to
+            if "qwen3-coder" in self.model_override or "qwen-coder" in self.model_override or self.model_override.startswith("qwen-"):
+                if self.ali_client: plans.append({"client": self.ali_client, "models": [self.model_override]})
+                if self.fallback_client: plans.append({"client": self.fallback_client, "models": [f"qwen/{self.model_override}" if "/" not in self.model_override else self.model_override]})
             else:
-                self.client = None
-        except Exception as e:
-            logger.error(f"Failed to initialize OpenAI client: {e}")
-            self.client = None
+                if self.fallback_client: plans.append({"client": self.fallback_client, "models": [self.model_override]})
+            return plans
 
-    def _get_models(self) -> List[str]:
-        """Returns the list of models to try, respecting overrides."""
-        if self.model:
-            return [self.model]
-        return self.ALIBABA_MODEL_LIST if self.is_alibaba else self.FREE_MODEL_LIST
+        # Standard Fallback logic: Try Primary then Secondary
+        if self.is_alibaba_primary:
+            if self.ali_client: plans.append({"client": self.ali_client, "models": self.ALIBABA_MODEL_LIST})
+            if self.fallback_client: plans.append({"client": self.fallback_client, "models": self.FREE_MODEL_LIST})
+        else:
+            if self.fallback_client: plans.append({"client": self.fallback_client, "models": self.FREE_MODEL_LIST})
+            if self.ali_client: plans.append({"client": self.ali_client, "models": self.ALIBABA_MODEL_LIST})
+            
+        return plans
 
-    def analyze(self, article_data: Dict[str, Any], test_mode: bool = False) -> Dict[str, Any]:
-        """
-        Analyzes the article content to extract entities, incidents, and classification.
-        Iterates through configured models until successful.
-        """
-        if test_mode:
-            logger.info("TEST MODE: returning mock extraction data.")
-            return self._get_mock_data()
-
-        if not self.client:
-            logger.error("Client not initialized. Returning empty analysis.")
-            return {}
-
-        content = article_data.get("content", "")
-        if len(content) < 100:
-            logger.warning(f"Content too short for analysis ({len(content)} chars). Skipping.")
-            return {}
-
-        # Limit content to avoid context window issues/costs (approx 4000 tokens)
-        truncated_content = content[:12000]
-
-        # Schema-Specific Prompting
-        category_hint = article_data.get("csv_category", "General")
-        
+    def _prepare_prompt(self, article_data: Dict[str, Any], content: str, category_hint: str) -> str:
+        """Constructs the prompt with niche-specific instructions."""
         base_prompt = f"""
         Analyze the following news article text and extract structured intelligence for a South African civic database.
         
         Article: "{article_data.get('title', 'Unknown')}"
         Date: "{article_data.get('published_date', 'Unknown')}"
-        Content: "{truncated_content}"
+        Content: "{content}"
         
         Category Hint: {category_hint}
         """
@@ -228,10 +215,9 @@ class IntelligenceExtractor:
              - "impact_metric": CO2 reduction or similar metric
              """
 
-        prompt = base_prompt + f"""
+        return base_prompt + f"""
         Extract the following fields into a valid JSON object:
         1. **sentiment**: "High Urgency", "Moderate Urgency", or "Low Urgency".
-        2. **category**: General category (e.g. "Politics", "Crime", "Business").
         2. **category**: General category (e.g. "Politics", "Crime", "Business").
         3. **niche_category**: ONE of ["Sports", "Politics", "Real Estate", "Gaming", "FoodTech", "Web3", "VC", "Cybersecurity", "Health", "Markets", "General", "Crime", "Motoring", "Energy", "Semiconductors", "Logistics", "ClimateTech"].
         4. **summary**: A concise 1-paragraph summary.
@@ -245,65 +231,70 @@ class IntelligenceExtractor:
         JSON OUTPUT ONLY.
         """
 
-        # Determine model list
-        # Determine model list
-        models_to_try = self._get_models()
-        if not models_to_try:
-            # Fallback for LLM_MODEL env var if not in _get_models (Optional legacy support)
-            custom_model = os.getenv("LLM_MODEL")
-            if custom_model:
-                 models_to_try = [custom_model]
-            else:
-                 logger.info("Using fallback defaults from _get_models")
+    def analyze(self, article_data: Dict[str, Any], content_text: str = "", test_mode: bool = False) -> Dict[str, Any]:
+        """
+        Analyzes article content with automatic provider failover.
+        """
+        if test_mode:
+            return self._get_mock_data()
 
-        for model in models_to_try:
-            try:
-                logger.info(f"🧠 Attempting extraction with model: {model}")
-                response = self.client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": "You are an expert intelligence analyst for South Africa."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    response_format={"type": "json_object"},
-                    temperature=0.0
-                )
+        content = content_text or article_data.get("content", "")
+        if not content or len(content) < 100:
+            logger.warning("Content too short for analysis.")
+            return {}
 
-                result_text = response.choices[0].message.content.strip()
-                # Some models might wrap JSON in markdown code blocks
-                if result_text.startswith("```json"):
-                    result_text = result_text[7:]
-                if result_text.endswith("```"):
-                    result_text = result_text[:-3]
-                
-                return json.loads(result_text.strip())
-
-            except APIError as e:
-                # Handle Quota/Payment errors specifically
-                if e.code == "402" or "credits" in str(e).lower() or "payment" in str(e).lower() or e.status_code == 429:
-                     logger.warning(f"Model {model} hit Payment/Quota limit: {e}")
-                else:
-                     logger.warning(f"Model {model} failed with API Error: {e}")
-                continue # Try next model
-            except json.JSONDecodeError:
-                logger.warning(f"Model {model} failed to return valid JSON.")
-                continue # Try next model
-            except Exception as e:
-                logger.warning(f"Model {model} failed with unexpected error: {e}")
-                continue # Try next model
-
-        logger.error(f"All models failed extraction. (Using Alibaba: {self.is_alibaba})")
+        truncated_content = content[:12000]
+        category_hint = article_data.get("csv_category", "General")
+        
+        # Prepare Prompt
+        prompt = self._prepare_prompt(article_data, truncated_content, category_hint)
+        
+        # Try Plans
+        plans = self._get_provider_plans()
+        
+        for plan in plans:
+            client = plan["client"]
+            models = plan["models"]
+            
+            for model_name in models:
+                logger.info(f"🧠 Attempting extraction with model: {model_name}")
+                try:
+                    response = client.chat.completions.create(
+                        model=model_name,
+                        messages=[
+                            {"role": "system", "content": "You are an expert intelligence analyst for South Africa. Return valid JSON only."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        response_format={"type": "json_object"},
+                        temperature=0.0,
+                        timeout=60.0 # Aggressive timeout for reliability
+                    )
+                    
+                    result_text = response.choices[0].message.content.strip()
+                    # Clean markdown
+                    if result_text.startswith("```json"): result_text = result_text[7:]
+                    if result_text.endswith("```"): result_text = result_text[:-3]
+                    
+                    analysis = json.loads(result_text.strip())
+                    if "title" in analysis or "category" in analysis:
+                        logger.info(f"✅ Successful extraction using {model_name}")
+                        return analysis
+                        
+                except Exception as e:
+                    logger.warning(f"Model {model_name} failed: {e}")
+                    # Switch provider on Auth error (401)
+                    if "401" in str(e) or "Unauthorized" in str(e):
+                        logger.error(f"❌ Auth error on {model_name}. Switching provider...")
+                        break 
+                    continue
+                    
+        logger.error("All extraction attempts failed.")
         return {}
 
     def analyze_crime_snippet(self, snippet: str, query_context: str) -> Dict[str, Any]:
         """
-        Specialized extraction for short search result snippets (Brave Search).
-        Classifies into Incident, Wanted, Missing, or Syndicate.
+        Specialized extraction for short search result snippets with failover.
         """
-        if not self.client:
-            logger.error("Client not initialized.")
-            return {}
-
         prompt = f"""
         Analyze this search result snippet about '{query_context}' in South Africa.
         Snippet: "{snippet}"
@@ -317,52 +308,35 @@ class IntelligenceExtractor:
 
         CRITICAL LOCATION CHECK:
         - If the event is NOT in South Africa, return "Irrelevant". 
-        - Watch for ambiguous names (e.g. "Beacon Bay" is SA, but "Beacon, NY" is USA. "East London" is SA, "London" is UK).
-        - Hints for SA Context: SAPS, Rand (currency), Provinces (Gauteng, KZN), Local slang/terms.
+        - Watch for ambiguous names.
+        - Hints for SA Context: SAPS, Rand, Provinces, Local terms.
 
         JSON OUTPUT ONLY. Format:
         {{
             "type": "Incident" | "Wanted" | "Missing" | "Syndicate" | "Irrelevant",
-            "data": {{ ... specific fields ... }}
+            "data": {{ ... }}
         }}
-
-        Fields for "Incident": "description", "date" (YYYY-MM-DD or relative), "location" (City/Suburb), "type" (e.g. Hijacking, Murder, Rape, Fraud, Gang Violence), "sentiment" ("High/Moderate/Low Urgency")
-        Fields for "Wanted": "name", "crime_type", "station" (Police Station), "details", "gender"
-        Fields for "Missing": "name", "date_missing", "station", "details", "region"
-        Fields for "Syndicate": "name", "category", "modus_operandi"
         """
 
-        # Reuse model logic (Simplified for snippet - use faster models if possible)
-        # For now, use same list logic
-        models_to_try = self._get_models()
-        
-        for model in models_to_try:
-            try:
-                response = self.client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": "You are a crime intelligence analyst."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    response_format={"type": "json_object"},
-                    temperature=0.0
-                )
-                result_text = response.choices[0].message.content.strip()
-                if result_text.startswith("```json"): result_text = result_text[7:]
-                if result_text.endswith("```"): result_text = result_text[:-3]
-                
-                data = json.loads(result_text.strip())
-                if isinstance(data, dict):
-                    return data
-                else:
-                    logger.warning(f"Model {model} returned non-dict JSON: {data}")
+        plans = self._get_provider_plans()
+        for plan in plans:
+            client = plan["client"]
+            models = plan["models"]
+            # For snippets, we can just try the first 2 models to keep it fast
+            for model_name in models[:2]:
+                try:
+                    response = client.chat.completions.create(
+                        model=model_name,
+                        messages=[{"role": "user", "content": prompt}],
+                        response_format={"type": "json_object"},
+                        timeout=15.0
+                    )
+                    return json.loads(response.choices[0].message.content.strip())
+                except:
                     continue
+        return {"type": "Irrelevant", "data": {}}
 
-            except Exception as e:
-                logger.warning(f"Snippet extraction failed on {model}: {e}")
-                continue
-        
-        return {}
+    def generate_briefing_script(self, stories: List[Dict]) -> Dict[str, str]:
 
     def generate_briefing_script(self, stories: List[Dict]) -> Dict[str, str]:
         """
