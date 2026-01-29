@@ -1,271 +1,109 @@
 {
-  "title": "📰 World News Intelligence Pipeline",
-  "description": "Fetch and analyze world news from top global sources using a reliable single-stage AI analysis pipeline, prioritizing source diversity.",
-  "schemaVersion": 1,
-  "type": "object",
-  "properties": {
-    "runMode": {
-      "title": "Actor Operation Mode",
-      "type": "string",
-      "editor": "select",
-      "default": "news_scraper",
-      "enum": [
-        "news_scraper",
-        "crime_intelligence",
-        "morning_briefing"
-      ],
-      "enumTitles": [
-        "📰 General News Scraper",
-        "🚨 Crime Intelligence Engine",
-        "🌅 Morning News Briefing"
-      ],
-      "description": "Choose the primary task for this run. 'General News Scraper' crawls news sites. 'Crime Intelligence Engine' performs targeted searches. 'Morning News Briefing' generates an AI video summary."
+    "title": "🎮 AI Gaming News Intelligence",
+    "description": "Scrapes top gaming feeds, enriches with Web Search, and analyzes via OpenRouter AI.",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+        "niche": {
+            "title": "🎯 Intelligence Niche",
+            "type": "string",
+            "editor": "select",
+            "default": "gaming",
+            "prefill": "gaming",
+            "enum": [
+                "all",
+                "crime",
+                "south_africa",
+                "brics",
+                "energy",
+                "sport",
+                "tech",
+                "entertainment",
+                "lifestyle",
+                "business",
+                "opinion",
+                "politics"
+            ],
+            "enumTitles": [
+                "🌍 All Categories",
+                "🚨 Crime",
+                "🇿🇦 South Africa",
+                "🧱 BRICS",
+                "⚡ Energy",
+                "🏉 Sport",
+                "💻 Tech",
+                "🎬 Entertainment",
+                "🏖️ Lifestyle",
+                "💼 Business",
+                "🗣️ Opinion",
+                "🗳️ Politics"
+            ],
+            "description": "Select the specific vertical for intelligence gathering.",
+            "sectionCaption": "Data Pipeline Settings"
+        },
+        "source": {
+            "title": "📰 News Source",
+            "type": "string",
+            "editor": "select",
+            "default": "all",
+            "prefill": "all",
+            "enum": [
+                "all",
+                "custom"
+            ],
+            "enumTitles": [
+                "🌍 All Niche Sources",
+                "🔗 Custom RSS"
+            ],
+            "description": "Select 'All' to use the curated list for the selected Niche, or 'Custom' for a specific URL."
+        },
+        "customFeedUrl": {
+            "title": "🔗 Custom RSS URL",
+            "type": "string",
+            "editor": "textfield",
+            "prefill": "https://www.theverge.com/rss/index.xml",
+            "description": "If 'Custom RSS' is selected, paste the Feed URL here."
+        },
+        "maxArticles": {
+            "title": "🔢 Max Articles",
+            "type": "integer",
+            "default": 10,
+            "prefill": 5,
+            "minimum": 1,
+            "maximum": 50,
+            "description": "Number of articles to process per run."
+        },
+        "discordWebhookUrl": {
+            "title": "📢 Discord Webhook URL",
+            "type": "string",
+            "editor": "textfield",
+            "description": "Optional: URL to post 'High Hype' alerts to Discord.",
+            "sectionCaption": "Notifications"
+        },
+        "forceRefresh": {
+            "title": "🔄 Force Refresh / Update All",
+            "type": "boolean",
+            "default": false,
+            "description": "If true, processes ALL articles even if they exist in DB (good for updating logic)."
+        },
+        "runTestMode": {
+            "title": "🧪 Run Test Mode (Zero Cost)",
+            "type": "boolean",
+            "default": false,
+            "prefill": false,
+            "description": "If enabled, returns dummy data without calling external APIs. Used for integration testing.",
+            "sectionCaption": "Maintenance & QA"
+        },
+        "enableBraveImageBackfill": {
+            "title": "🦁 Enable Brave Image Backfill",
+            "type": "boolean",
+            "default": false,
+            "description": "If scraped image is missing, use Brave Search to find a relevant image (Costs extra API credits)."
+        }
     },
-    "source": {
-      "title": "News Source (News Scraper Mode Only)",
-      "type": "string",
-      "editor": "select",
-      "enum": [
-        "all",
-        "Daily Maverick",
-        "IOL",
-        "ENCA",
-        "Business Day",
-        "EWN",
-        "Mail & Guardian",
-        "Time Live",
-        "GroundUp",
-        "The Herald",
-        "Tabloid Media",
-        "Sunday World",
-        "Wanted Online",
-        "Rising Sun Newspapers",
-        "SA Good News",
-        "Witness",
-        "AllAfrica",
-        "Netwerk24",
-        "Business Report",
-        "Buzz South Africa",
-        "Cape Argus",
-        "CBN",
-        "Cape Times",
-        "The Citizen",
-        "City Press",
-        "Daily Dispatch",
-        "Daily News",
-        "Daily Sun",
-        "Daily Voice",
-        "Die Burger",
-        "Die Vryburger",
-        "GO! & Express",
-        "The Gremlin",
-        "Huisgenoot",
-        "Isolezwe",
-        "Jeune Afrique",
-        "Lowvelder",
-        "Zululand Observer",
-        "The Newspaper",
-        "Pretoria News",
-        "Public Eye News",
-        "Rekord",
-        "The Rep",
-        "Republikein",
-        "Roodepoort Record",
-        "South Africa Today",
-        "The South African",
-        "Sowetan Live",
-        "The Star",
-        "Sunday Tribune",
-        "Talk of the Town",
-        "The Worldfolio",
-        "Ziwaphi",
-        "George Herald",
-        "Kouga Express",
-        "People's Post",
-        "SABC News",
-        "Moneyweb",
-        "News.co.za",
-        "Chevrah Kadisha",
-        "Table Talk",
-        "Gemsbok",
-        "Lentswe",
-        "Northwest Midweek",
-        "Mafikeng Mail",
-        "Noordwester",
-        "Rustenburg Herald",
-        "Stellalander",
-        "TechCentral",
-        "Mossel Bay Advertiser",
-        "MyBroadband",
-        "Ilanga",
-        "Rapport",
-        "The Post",
-        "Sunday Independent",
-        "PE Express",
-        "custom"
-      ],
-      "enumTitles": [
-        "🌍 All Sources",
-        "Daily Maverick",
-        "IOL",
-        "eNCA",
-        "Business Day",
-        "EWN",
-        "Mail & Guardian",
-        "Time Live",
-        "GroundUp",
-        "The Herald",
-        "Tabloid Media",
-        "Sunday World",
-        "Wanted Online",
-        "Rising Sun Newspapers",
-        "SA Good News",
-        "Witness",
-        "AllAfrica",
-        "Netwerk24",
-        "Business Report",
-        "Buzz South Africa",
-        "Cape Argus",
-        "CBN",
-        "Cape Times",
-        "The Citizen",
-        "City Press",
-        "Daily Dispatch",
-        "Daily News",
-        "Daily Sun",
-        "Daily Voice",
-        "Die Burger",
-        "Die Vryburger",
-        "GO! & Express",
-        "The Gremlin",
-        "Huisgenoot",
-        "Isolezwe",
-        "Jeune Afrique",
-        "Lowvelder",
-        "Zululand Observer",
-        "The Newspaper",
-        "Pretoria News",
-        "Public Eye News",
-        "Rekord",
-        "The Rep",
-        "Republikein",
-        "Roodepoort Record",
-        "South Africa Today",
-        "The South African",
-        "Sowetan Live",
-        "The Star",
-        "Sunday Tribune",
-        "Talk of the Town",
-        "The Worldfolio",
-        "Ziwaphi",
-        "George Herald",
-        "Kouga Express",
-        "People's Post",
-        "SABC News",
-        "Moneyweb",
-        "News.co.za",
-        "Chevrah Kadisha",
-        "Table Talk",
-        "Gemsbok",
-        "Lentswe",
-        "Northwest Midweek",
-        "Mafikeng Mail",
-        "Noordwester",
-        "Rustenburg Herald",
-        "Stellalander",
-        "TechCentral",
-        "Mossel Bay Advertiser",
-        "MyBroadband",
-        "Ilanga",
-        "Rapport",
-        "The Post",
-        "Sunday Independent",
-        "PE Express",
-        "🔗 Custom URL"
-      ],
-      "default": "all",
-      "description": "Select the news category to collect from. Articles will be fetched from different sources within this category first."
-    },
-    "crimeCityScope": {
-      "title": "Crime Intelligence: City Scope",
-      "type": "string",
-      "editor": "select",
-      "default": "major_cities",
-      "enum": [
-        "major_cities",
-        "all_cities"
-      ],
-      "enumTitles": [
-        "🏙️ Major Cities Only (Frequent)",
-        "🗺️ All 1620 Cities (Infrequent)"
-      ],
-      "description": "Scope of cities to scan for crime intelligence. 'Major Cities' checks key metros. 'All Cities' sweeps the entire database."
-    },
-    "customFeedUrl": {
-      "title": "Custom RSS Feed URL",
-      "type": "string",
-      "editor": "textfield",
-      "description": "Provide a custom RSS feed URL (if 'Custom' selected)."
-    },
-    "maxArticlesPerSource": {
-      "title": "Max Articles Per Source",
-      "type": "integer",
-      "editor": "number",
-      "description": "Maximum number of articles to scrape from each source URL listing.",
-      "default": 5
-    },
-    "maxArticles": {
-      "title": "Maximum Total Articles",
-      "type": "integer",
-      "editor": "number",
-      "description": "Global limit on total articles fetches across all sources.",
-      "default": 50
-    },
-    "webhookUrl": {
-      "title": "Real-Time Webhook URL",
-      "type": "string",
-      "editor": "textfield",
-      "description": "Optional URL to POST high-priority incidents to (e.g. your Next.js API endpoint)."
-    },
-    "heygenTemplateId": {
-      "title": "HeyGen Template ID (Briefing Mode)",
-      "type": "string",
-      "editor": "textfield",
-      "description": "Optional: Override the HEYGEN_TEMPLATE_ID environment variable for the morning briefing."
-    },
-    "alibabaBaseUrl": {
-      "title": "Alibaba Base URL",
-      "type": "string",
-      "editor": "textfield",
-      "description": "Optional: Override the Alibaba Cloud endpoint (e.g. use 'https://dashscope.aliyuncs.com/compatible-mode/v1' for China-issued keys)."
-    },
-    "alibabaModel": {
-      "title": "Alibaba Model Name",
-      "type": "string",
-      "editor": "textfield",
-      "description": "Optional: Specify a specific model (e.g. 'qwen3-coder-plus') to force usage of that model ONLY."
-    },
-    "runTestMode": {
-      "title": "Admin Test Mode (Bypasses ALL External API Costs)",
-      "type": "boolean",
-      "description": "Setting this to true bypasses external API calls (Brave/OpenAI), enabling zero-cost testing. **DO NOT ENABLE IN PRODUCTION.**",
-      "default": false
-    },
-    "enableImageBackfill": {
-      "title": "Enable Image Backfill (Brave Search)",
-      "type": "boolean",
-      "description": "If enabled, uses Brave Image Search to find images for articles that lack them. Incurs API costs.",
-      "default": true
-    },
-    "backfillHistoricalImages": {
-      "title": "Clean-Up: Run Historical Image Backfill",
-      "type": "boolean",
-      "description": "If enabled, scans existing DB records for missing images and fills them using Brave Search. (Runs INSTEAD of scraping if checked).",
-      "default": false
-    }
-  },
-  "required": [
-    "runMode",
-    "source"
-  ]
+    "required": [
+        "source",
+        "maxArticles",
+        "runTestMode"
+    ]
 }

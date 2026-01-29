@@ -1,238 +1,162 @@
-import csv
 import asyncio
-import logging
+from typing import TypedDict, List
 from apify import Actor
-import random
-import math
-from .scraper import NewsScraper
-from .extractor import IntelligenceExtractor
-from .ingestor import SupabaseIngestor
-try:
-    from .crime_engine import CrimeIntelligenceEngine
-except ImportError:
-    CrimeIntelligenceEngine = None
-    logger.warning("CrimeIntelligenceEngine module not found or failed to load.")
+from langgraph.graph import StateGraph, END
+import os 
 
-try:
-    from .briefing_engine import BriefingEngine
-except ImportError:
-    BriefingEngine = None
-    logger.warning("BriefingEngine module not found or failed to load.")
+from .models import InputConfig, ArticleCandidate, DatasetRecord
+from .services.feeds import fetch_feed_data
+from .services.scraper import scrape_article_content
+from .services.search import brave_search_fallback, find_relevant_image
+from .services.llm import analyze_content
+from .services.notifications import send_discord_alert
+from supabase import create_client, Client
 
-try:
-    from .backfill_images import ImageBackfiller
-except ImportError:
-    ImageBackfiller = None
-    logger.warning("ImageBackfiller module not found.")
+# --- HELPER: Ingestor ---
+# Use the new specialized Ingestor
+from .services.ingestor import SupabaseIngestor
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+async def process_article_node(state: WorkflowState):
+    """The Core Logic: Scrape -> Fallback -> AI -> Save"""
+    config = state['config']
+    idx = state['current_index']
+    articles = state['articles']
+    
+    if idx >= len(articles):
+        return {"current_index": idx} 
 
-# Constants
-CSV_PATH = "sources.csv"
-MAX_CONCURRENT_PAGES = 3
+    article = articles[idx]
+    
+    # Initialize Ingestor (Stateful per call, or singleton? Init here to ensure env vars)
+    ingestor = SupabaseIngestor()
+
+    Actor.log.info(f"👉 [{idx+1}/{len(articles)}] Processing: {article.title}")
+
+    # 0. STRATEGY: Deduplication Check (Optional: Ingestor handles upserts, but we can skip early)
+    # The new Ingestor doesn't expose a simple check public method easily without init. 
+    # But since we upsert, we can just proceed.
+    # Cost saving: Skip scraping if we really want to.
+    # Let's rely on upsert for now to ensure data freshness or "forceRefresh".
+
+    article_niche = getattr(article, 'niche', None) or config.niche
+    if article_niche == 'all': article_niche = 'general'
+
+    # 1. STRATEGY: Scrape First
+    context, scraped_image = scrape_article_content(article.url, config.runTestMode)
+    method = "scraped"
+    
+    final_image_url = article.image_url or scraped_image
+
+    # 2. STRATEGY: Search Fallback
+    if not context:
+        Actor.log.info("⚠️ Scraping failed/blocked. Engaging Brave Search Fallback.")
+        context = brave_search_fallback(article.title, config.runTestMode)
+        method = "search_fallback"
+        
+    # 3. STRATEGY: Brave Image Backfill
+    if not final_image_url and config.enableBraveImageBackfill:
+         Actor.log.info(f"🖼️ Backfilling image for: {article.title}")
+         final_image_url = find_relevant_image(article.title, config.runTestMode)
+         # Update article model for consistency (optional, but passed to ingestor)
+         article.image_url = final_image_url
+
+    # 3. AI Analysis & Ingestion
+    if context:
+        try:
+            # Analyze
+            analysis = analyze_content(context, niche=article_niche, run_test_mode=config.runTestMode)
+            
+            # --- DYNAMIC ROUTING (Re-routing) ---
+            if analysis.detected_niche:
+                 # Clean up detected niche
+                 d_niche = analysis.detected_niche.lower().strip()
+                 valid_niches = ["crime", "politics", "business", "sport", "energy", "motoring"]
+                 if d_niche in valid_niches:
+                     Actor.log.info(f"🔀 Re-routing '{article_niche}' -> '{d_niche}'")
+                     article_niche = d_niche
+            
+            # 4. Monetization
+            if not config.runTestMode:
+                await Actor.charge(event_name="summarize_snippets_with_llm")
+
+            # 5. Ingest (Supabase)
+            # We pass the analysis result (Models) and the article candidate
+            # Ingestor handles: splitting incidents, people, main entry, and routing tables.
+            await ingestor.ingest(analysis, article)
+            
+            # 6. Legacy Dataset Push (Apify Storage)
+            # Create a flat record for the Apify Dataset view
+            record = DatasetRecord(
+                niche=article_niche,
+                source_feed=article.source,
+                title=article.title,
+                url=article.url,
+                image_url=final_image_url,
+                published=article.published,
+                method=method,
+                sentiment=analysis.sentiment,
+                category=analysis.category,
+                key_entities=analysis.key_entities,
+                ai_summary=analysis.summary,
+                location=analysis.location,
+                city=analysis.city,
+                country=analysis.country,
+                is_south_africa=analysis.is_south_africa,
+                raw_context_source=context[:200] + "...",
+                # Niche specifics (Generic mapping)
+                game_studio=analysis.game_studio,
+                niche_data=analysis.niche_data # Map dictionary if supported
+            )
+            await Actor.push_data(record.model_dump())
+            Actor.log.info("✅ Data pushed to Apify dataset.")
+
+            # 7. Notifications
+            if config.discordWebhookUrl and "High Urgency" in analysis.sentiment:
+                await send_discord_alert(config.discordWebhookUrl, record.model_dump())
+            
+        except Exception as e:
+            Actor.log.error(f"Analysis loop failed for {article.title}: {e}")
+    else:
+        Actor.log.error("❌ Failed to gather ANY context. Skipping.")
+
+    return {"current_index": idx + 1}
+
+def should_continue(state: WorkflowState):
+    if state['current_index'] < len(state['articles']):
+        return "process_article"
+    return END
+
+# --- Main Entry ---
 
 async def main():
     async with Actor:
-        actor_input = await Actor.get_input() or {}
-        test_mode = actor_input.get("test_mode", False)
-        run_mode = actor_input.get("runMode", "news_scraper")
+        raw_input = await Actor.get_input() or {}
+        config = InputConfig(**raw_input)
         
-        selected_source = actor_input.get("source", "all")
-        custom_url = actor_input.get("customFeedUrl")
+        # --- MAINTENANCE FIX ---
+        if not config.runTestMode:
+            if not os.getenv("OPENROUTER_API_KEY"):
+                Actor.log.warning("⚠️ OPENROUTER_API_KEY not found. Switching to TEST MODE.")
+                config.runTestMode = True
+            elif not os.getenv("BRAVE_API_KEY"):
+                Actor.log.warning("⚠️ BRAVE_API_KEY missing. Search fallback disabled.")
+
+        # Graph Setup
+        workflow = StateGraph(WorkflowState)
+        workflow.add_node("fetch_feeds", fetch_feeds_node)
+        workflow.add_node("process_article", process_article_node)
         
-        logger.info(f"🚀 Starting SA News Intelligence Actor")
-        logger.info(f"⚙️  Config: Mode='{run_mode}', Source='{selected_source}', Test Mode={test_mode}")
-
-        # 0. Check for Historical Backfill Request
-        if actor_input.get("backfillHistoricalImages", False):
-            if ImageBackfiller:
-                logger.info("🧹 Mode: Historical Image Backfill Enabled.")
-                backfiller = ImageBackfiller()
-                # Run for key tables
-                tables = [
-                    "ai_intelligence.entries", 
-                    "gov_intelligence.election_news", 
-                    "sports_intelligence.news",
-                    "ai_intelligence.energy",
-                    "ai_intelligence.nuclear_energy"
-                ]
-                for t in tables:
-                    await backfiller.process_batch(t, limit=100) # Increased limit for manual run
-                logger.info("✅ Historical Backfill Complete. Exiting.")
-                return 
-            else:
-                 logger.error("❌ Backfill requested but module failed to load.")
-                 return
-
-        # 1. Load Sources from CSV
-        sources = []
-        try:
-            # Load from Actor root
-            import os
-            base_dir = os.path.dirname(os.path.abspath(__file__)) # src/
-            actor_root = os.path.dirname(base_dir) # sa-news-intelligence/
-            
-            csv_path = os.path.join(actor_root, CSV_PATH)
-            
-            logger.info(f"📂 Reading sources from {csv_path}")
-            
-            with open(csv_path, 'r', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    if row.get("URL"):
-                        sources.append(row)
-        except Exception as e:
-            logger.error(f"❌ Failed to load sources CSV: {e}")
-            return
-
-        # 2. Filter Sources based on Input
-        target_sources = []
+        workflow.set_entry_point("fetch_feeds")
+        workflow.add_conditional_edges("fetch_feeds", lambda x: "process_article")
+        workflow.add_conditional_edges("process_article", should_continue)
         
-        if selected_source.lower() == "custom":
-            if custom_url:
-                target_sources = [{"Source": "Custom", "URL": custom_url, "Category": "General", "Location (If Applicable)": ""}]
-                logger.info(f"🔗 Using Custom URL: {custom_url}")
-            else:
-                logger.error("❌ Custom source selected but no URL provided.")
-                return
-        elif selected_source.lower() != "all":
-            # Filter by matching Source column (case-insensitive)
-            target_sources = [s for s in sources if s.get("Source", "").lower() == selected_source.lower()]
-            if not target_sources:
-                 logger.warning(f"⚠️ No sources found matching '{selected_source}'. Checking available sources...")
-                 # Optional: log available source names for debugging
-                 unique_sources = set(s.get("Source") for s in sources)
-                 logger.info(f"ℹ️  Available Sources: {', '.join(unique_sources)}")
-        else:
-            # "all" selected
-            target_sources = sources
-
-        if test_mode and len(target_sources) > 5:
-             logger.info("🧪 Test Mode: Limiting to first 5 sources.")
-             target_sources = target_sources[:5]
-
-        ali_url = actor_input.get("alibabaBaseUrl")
-        ali_model = actor_input.get("alibabaModel")
-        extractor = IntelligenceExtractor(base_url=ali_url, model=ali_model)
+        app = workflow.compile()
         
-        webhook_url = actor_input.get("webhookUrl")
-        enable_backfill = actor_input.get("enableImageBackfill", True)
-        ingestor = SupabaseIngestor(webhook_url=webhook_url, enable_backfill=enable_backfill)     # Relies on Env Vars
-        
-        # 3b. Check for Crime Intelligence Mode
-        if run_mode == "crime_intelligence":
-            if CrimeIntelligenceEngine:
-                city_scope = actor_input.get("crimeCityScope", "major_cities")
-                crime_engine = CrimeIntelligenceEngine(ingestor, extractor)
-                await crime_engine.run(city_scope=city_scope)
-                logger.info("✅ Crime Intelligence Run Complete.")
-                return
-            else:
-                logger.error("❌ Crime Intelligence Engine unavailable.")
-                return
-        
-        # 3c. Check for Morning Briefing Mode
-        elif run_mode == "morning_briefing":
-            if BriefingEngine:
-                t_id = actor_input.get("heygenTemplateId")
-                briefing_engine = BriefingEngine(ingestor, extractor, template_id=t_id)
-                await briefing_engine.run()
-                return
-            else:
-                logger.error("❌ BriefingEngine unavailable.")
-                return
+        await app.ainvoke({
+            "config": config,
+            "articles": [],
+            "current_index": 0
+        })
 
-        if run_mode == "news_scraper":
-             # 3d. Apply Diversity Logic
-             # Shuffle to avoid alphabetical bias
-             random.shuffle(target_sources)
-             logger.info("🔀 Shuffled sources for diversity.")
-             
-             # Calculate Smart Limits
-             global_max_articles = actor_input.get("maxArticles", 50)
-             user_max_per_source = actor_input.get("maxArticlesPerSource", 5)
-             source_count = len(target_sources)
-             
-             if source_count > 0:
-                 # Distribute global limit across sources (at least 1 per source if possible)
-                 smart_limit = math.ceil(global_max_articles / source_count)
-                 # Respect user's max_per_source if it's lower
-                 final_per_source_limit = min(user_max_per_source, smart_limit)
-                 # Ensure at least 1 if global max allows
-                 if final_per_source_limit < 1 and global_max_articles > 0: final_per_source_limit = 1
-             else:
-                 final_per_source_limit = user_max_per_source
-
-             logger.info(f"⚖️  Smart Limit: {final_per_source_limit} articles/source (Global: {global_max_articles}, Sources: {source_count})")
-        else:
-             # Other modes (like crime) might differ, but safe defaults
-             global_max_articles = 1000
-             final_per_source_limit = actor_input.get("maxArticlesPerSource", 5)
-
-        logger.info(f"✅ Loaded {len(target_sources)} sources to process.")
-        
-        total_articles_processed = 0
-        
-        # 4. Execution Loop
-        async with NewsScraper(headless=True) as scraper:
-            
-            for source in target_sources:
-                source_url = source.get("URL")
-                category = source.get("Category")
-                location = source.get("Location (If Applicable)")
-                
-                logger.info(f"🌍 Processing Source: {source.get('Source')} - {category} ({source_url})")
-                
-                
-                # Check Global Limit
-                if total_articles_processed >= global_max_articles:
-                    logger.info(f"🛑 Global Limit Reached ({total_articles_processed}/{global_max_articles}). Stopping.")
-                    break
-
-                # 4a. Crawl for Article Links
-                # Pass priority keywords for SA Context
-                keywords = ["africa", "brics", "south africa", "gauteng", "cape", "zuma", "ramaphosa"]
-                article_links = await scraper.get_article_links(source_url, max_links=final_per_source_limit, priority_keywords=keywords)
-                
-                logger.info(f"🕷️  Source {source.get('Source')} yielded {len(article_links)} articles.")
-                
-                # 3b. Process Each Article
-                for article_url in article_links:
-                    logger.info(f"📄 --> Scrape & Analyze: {article_url}")
-                    
-                    # Fetch content
-                    # Note: We use the same fetch_article method, but now on a direct article URL
-                    result = await scraper.fetch_article(article_url)
-                    
-                    if "error" in result:
-                        logger.warning(f"⚠️ Skipping {article_url} due to error: {result['error']}")
-                        continue
-                    
-                    # Analyze
-                    # Inject CSV metadata into analysis context
-                    result["csv_category"] = category
-                    result["csv_location"] = location
-                    result["source_name"] = source.get("Source")
-                    
-                    # Check for empty content
-                    if not result.get("content") or len(result.get("content")) < 100:
-                         logger.warning(f"⚠️ Content empty or too short for analysis: {article_url}")
-                         continue
-                    
-                    analysis = extractor.analyze(result, test_mode=test_mode)
-                    
-                    if not analysis:
-                        logger.warning(f"⚠️ Analysis failed or returned empty.")
-                        continue
-                    
-                    # Ingest
-                    await ingestor.ingest(analysis, result)
-                    
-                    total_articles_processed += 1
-                    if total_articles_processed >= global_max_articles:
-                        break
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     asyncio.run(main())

@@ -1,90 +1,76 @@
-# 🇿🇦 SA News & Crime Intelligence System
+# 🕵️ Niche Intelligence Actor
 
-This system is a sophisticated **Intelligence Gathering Actor** designed to monitor, analyze, and structure open-source data related to crime, civil unrest, and major events in South Africa. It prioritizes actionable intelligence, deep entity extraction, and real-time alerting.
+A powerful, multi-vertical intelligence scout designed to aggregate, deduplicate, and analyze global news feeds. It uses AI to identify high-impact events and syncs structured intelligence to your database.
 
----
+## 🌟 Features
 
-## 🏗️ System Architecture
+*   **Multi-Niche Support**: Specialized tracking for Gaming, Crypto, Tech, Nuclear Energy, VC, and more.
+*   **Global Aggregation**: Single-click `"All Niches"` mode fetches and processes feeds across all verticals simultaneously.
+*   **Smart Deduplication**: Checks your database before processing to skip articles that have already been ingrained, saving API costs and compute time.
+*   **High-Speed Ingestion**: Uses parallel fetching to process 50+ feeds in seconds.
+*   **Time-Based Filtering**: Automatically discards articles older than your specified limit (e.g., `24h`) to ensure freshness.
+*   **Resilient AI Analysis**: 
+    *   **Primary**: Alibaba Cloud Qwen (High Performance)
+    *   **Fallback**: OpenRouter (Google Gemini Free Tier) ensures continuity if the primary fails.
+*   **Real-Time Alerts**: Integrated Discord Webhook support to ping you immediately for "High Hype" events.
+*   **Dynamic Routing**: Automatically routes data to niche-specific Supabase tables (e.g., `intelligence.gaming`, `intelligence.crypto`).
 
-The system operates as a modular pipeline, transforming unstructured web data into high-fidelity intelligence.
+## 🏗️ Architecture
 
-### 1. Core Components
+1.  **Ingestion**: Fetches RSS feeds concurrently based on the `NICHE_FEED_MAP`.
+2.  **Filter & Dedup**: 
+    *   Discards old content (`timeLimit`).
+    *   Checks Supabase for existing URLs (`check_url_exists`).
+3.  **Processing**:
+    *   **Scrape**: Extracts full article text.
+    *   **Fallback Search**: Uses Brave Search if scraping fails.
+    *   **Analyze**: LLM extracts Sentiment, Category, Entities, and Location.
+4.  **Storage & Sync**: 
+    *   Pushes to Apify Dataset.
+    *   Syncs to specific Supabase table (`intelligence.<niche>`).
+5.  **Notification**: Sends Discord alert if sentiment is "High Hype".
 
-*   **`main.py` (Controller)**: The entry point. It parses input, initializes components, and routes execution to either the General News Scraper or the specialized `CrimeIntelligenceEngine`.
-*   **`CrimeIntelligenceEngine` (Orchestrator)**: The brain of the crime monitoring module.
-    *   **Search**: Uses **Brave Search API** with a 3-tier key rotation strategy (Free Search -> Free AI -> Paid Base) to minimize costs.
-    *   **Targeting**: Iterates through South African major metros and high-risk zones.
-*   **`NewsScraper` (Gatherer)**: A robust `httpx` and `BeautifulSoup` based scraper. It handles smart user-agent rotation, content extraction, and now includes **Deep Crawling** capabilities to traverse archive pages.
-*   **`IntelligenceExtractor` (Analyst)**: The AI layer.
-    *   **Stage 1 (Snippet Analysis)**: Rapidly evaluates search result snippets to filter out irrelevant noise (e.g., "crime novels", "video games").
-    *   **Stage 2 (Deep Intelligence)**: Performs comprehensive analysis on full article text to extract incidents, syndicates, and detailed suspect profiles.
-*   **`SupabaseIngestor` (Load)**: Handles transactional data ingestion into Supabase, managing deduplication (MD5 hashes), foreign key resolution, and raw data archival.
-
-### 2. Data Flow: The Deep Intelligence Pipeline
-
-1.  **Scanning**: The `CrimeEngine` queries Brave Search for real-time incidents (e.g., *"cash in transit heist Johannesburg today"*).
-2.  **Filter Gate**: `analyze_crime_snippet` acts as a cost-effective gatekeeper. Only high-probability crime reports pass.
-3.  **Deep Dive**: The system visits the full URL, scraping the complete text.
-4.  **AI Extraction**: A specialized LLM prompt analyzes the text to extract:
-    *   **Incidents**: Type, Severity (1-3), Location, Modus Operandi.
-    *   **Entities**: Suspects, Victims, Officials (mapped to `people_intelligence`).
-    *   **Organizations**: Gangs, Syndicates, Security Companies.
-5.  **Ingestion & Alerting**:
-    *   Structured data is saved to `crime_intelligence.incidents`.
-    *   Full text is archived in `incidents.full_text` for future NLP.
-    *   **Real-Time Webhook**: If `Severity >= 3` (High), a JSON payload is immediately POSTed to the configured `webhookUrl`.
-
----
-
-## 💾 Database Schema (Supabase)
-
-Data is normalized across several key schemas to support network analysis and complex querying.
-
-### `crime_intelligence` Schema
-| Table | Description | Key Columns |
-| :--- | :--- | :--- |
-| `incidents` | The central event registry. | `id`, `type`, `description`, `severity`, `location`, `full_text` |
-| `syndicates` | Organized crime groups. | `name`, `modus_operandi`, `active_regions` |
-| `structured_crime_intelligence` | Audit log of raw AI output. | `source_url`, `ai_analysis_json`, `model_used` |
-
-### `people_intelligence` Schema
-| Table | Description | Key Columns |
-| :--- | :--- | :--- |
-| `wanted_people` | Suspects and wanted persons. | `name`, `status` (Wanted/Arrested), `crimes_linked` |
-| `missing_people` | Missing persons registry. | `name`, `last_seen_date`, `location` |
-
-### `ai_intelligence` Schema
-| Table | Description | Key Columns |
-| :--- | :--- | :--- |
-| `entries` | General news & "On This Day" history. | `title`, `summary`, `sentiment_score`, `canonical_url` |
-
----
-
-## ⚙️ Configuration & Input
-
-The actor is configured via `input.json` and environment variables.
+## 🛠️ Configuration
 
 ### Environment Variables (Secrets)
-*   **LLM Providers**: `OPENAI_API_KEY` (Primary), `ALIBABA_CLOUD_API_KEY` (Fallback), `OPENROUTER_API_KEY`.
-*   **Search**: `BRAVE_SEARCH_API` (Required), `BRAVE_AI_API` (Optional), `BRAVE_BASE_API` (Optional).
-*   **Database**: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
+| Variable | Description | Required |
+| :--- | :--- | :--- |
+| `ALIBABA_CLOUD_API_KEY` | Primary LLM Provider (Qwen) | Yes |
+| `OPENROUTER_API_KEY` | Fallback LLM Provider (Gemini Free) | Yes |
+| `BRAVE_API_KEY` | Search Fallback for scraping | Optional |
+| `SUPABASE_URL` | Database URL | Yes |
+| `SUPABASE_KEY` | Service Role Key | Yes |
 
-### Input Schema (`input.json`)
+### Input Parameters
+| Parameter | Description | Default |
+| :--- | :--- | :--- |
+| `niche` | Specific vertical (`gaming`, `crypto`) or `all` for global run. | `gaming` |
+| `source` | `all` for curated feeds, or `custom` for a specific URL. | `all` |
+| `timeLimit` | Max age of articles to process (`24h`, `48h`, `1w`). | `w` |
+| `discordWebhookUrl` | URL for "High Hype" alerts. | `null` |
+| `runTestMode` | If true, uses dummy data and mocks APIs (Zero Cost). | `false` |
+
+## 🚀 Usage
+
+### Global Update (Production)
+Run this daily to keep all intelligence tables fresh.
 ```json
 {
-  "runMode": "crime_intelligence",   // or "news_scraper"
-  "crimeCityScope": "major_cities",  // "national", "major_cities", "gauteng"
-  "webhookUrl": "https://your-webhook.com/api/alerts",
-  "maxArticlesPerSource": 5,
-  "test_mode": false
+  "niche": "all",
+  "source": "all",
+  "maxArticles": 50,
+  "timeLimit": "24h",
+  "discordWebhookUrl": "https://discord.com/api/webhooks/..."
 }
 ```
 
----
-
-## 🚀 Key Features
-
-*   **Dual-Stage Analysis**: Cost-efficient filtering followed by deep, rich extraction.
-*   **Data Permanence**: We never throw away data. Full article text and raw AI JSON are preserved for future model training or re-analysis.
-*   **Resilient Scraping**: Uses `httpx` with smart headers for speed, falling back to basic extraction if needed.
-*   **Operational Security**: Strict "South Africa" context limits to prevent data pollution from global events.
+### Targeted Scout
+Run this to deep-dive into a specific sector.
+```json
+{
+  "niche": "nuclear",
+  "source": "all",
+  "maxArticles": 20,
+  "timeLimit": "1w"
+}
+```

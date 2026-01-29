@@ -1,0 +1,19 @@
+{
+    "actorOutputSchemaVersion": 1,
+    "title": "AI Gaming News Intelligence Output",
+    "type": "object",
+    "properties": {
+        "dashboard": {
+            "type": "string",
+            "title": "📊 Intelligence Dashboard",
+            "description": "A curated table view of the analyzed gaming news, including sentiment and AI summaries.",
+            "template": "{{links.apiDefaultDatasetUrl}}/items?view=overview"
+        },
+        "raw_dataset": {
+            "type": "string",
+            "title": "📂 Raw Data (JSON)",
+            "description": "The complete dataset containing all scraped fields, metadata, and full analysis results.",
+            "template": "{{links.apiDefaultDatasetUrl}}/items"
+        }
+    }
+}

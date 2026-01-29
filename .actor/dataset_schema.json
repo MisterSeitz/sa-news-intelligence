@@ -1,67 +1,116 @@
 {
-  "actorSpecification": 1,
-  "views": {
-    "results": {
-      "title": "News Intelligence Results",
-      "transformation": {
-        "fields": [
-          "published",
-          "source",
-          "title",
-          "sentiment",
-          "category",
-          "key_entities",
-          "gdelt_tone",
-          "snippet_sources",
-          "summary",
-          "url"
-        ]
-      },
-      "display": {
-        "component": "table",
+    "actorSpecification": 1,
+    "fields": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
         "properties": {
-          "published": {
-            "label": "Published",
-            "format": "date"
-          },
-          "source": {
-            "label": "Source",
-            "format": "text"
-          },
-          "title": {
-            "label": "Title",
-            "format": "text"
-          },
-          "sentiment": {
-            "label": "Urgency/Importance",
-            "format": "text"
-          },
-          "category": {
-            "label": "Category",
-            "format": "text"
-          },
-          "key_entities": {
-            "label": "Key Entities",
-            "format": "array"
-          },
-          "gdelt_tone": {
-            "label": "Urgency Score",
-            "format": "number"
-          },
-          "snippet_sources": {
-            "label": "Grounding Snippets",
-            "format": "array"
-          },
-          "summary": {
-            "label": "AI Summary",
-            "format": "text"
-          },
-          "url": {
-            "label": "Original URL",
-            "format": "link"
-          }
+            "title": {
+                "type": "string",
+                "title": "Headline"
+            },
+            "url": {
+                "type": "string",
+                "format": "uri",
+                "title": "Article URL"
+            },
+            "source_feed": {
+                "type": "string",
+                "title": "Source"
+            },
+            "published": {
+                "type": ["string", "null"],
+                "format": "date-time",
+                "title": "Date"
+            },
+            "ai_summary": {
+                "type": "string",
+                "title": "AI Insight",
+                "description": "2-sentence executive summary."
+            },
+            "sentiment": {
+                "type": ["string", "null"],
+                "title": "Hype Rating",
+                "description": "E.g., High Hype, Moderate Interest."
+            },
+            "category": {
+                "type": ["string", "null"],
+                "title": "Category",
+                "description": "E.g., Game Review, Esports Results."
+            },
+            "key_entities": {
+                "type": "array",
+                "title": "Key Entities",
+                "items": {
+                    "type": "string"
+                },
+                "default": []
+            },
+            "method": {
+                "type": "string",
+                "enum": ["scraped", "search_fallback"],
+                "description": "Traceability: Did we scrape the HTML or use Search API?"
+            },
+            "raw_context_source": {
+                "type": ["string", "null"],
+                "description": "Truncated raw text used for analysis (debugging)."
+            }
+        },
+        "required": ["title", "url", "method", "ai_summary"]
+    },
+    "views": {
+        "overview": {
+            "title": "📊 Intelligence Dashboard",
+            "description": "Strategic view of Gaming/Esports news analysis.",
+            "transformation": {
+                "fields": [
+                    "sentiment",
+                    "category",
+                    "title",
+                    "ai_summary",
+                    "key_entities",
+                    "source_feed",
+                    "method",
+                    "url"
+                ],
+                "desc": true
+            },
+            "display": {
+                "component": "table",
+                "properties": {
+                    "sentiment": {
+                        "label": "🔥 Hype",
+                        "format": "text"
+                    },
+                    "category": {
+                        "label": "🏷️ Category",
+                        "format": "text"
+                    },
+                    "title": {
+                        "label": "Headline",
+                        "format": "text"
+                    },
+                    "ai_summary": {
+                        "label": "💡 AI Analysis",
+                        "format": "text"
+                    },
+                    "key_entities": {
+                        "label": "🎮 Entities",
+                        "format": "array"
+                    },
+                    "source_feed": {
+                        "label": "Source",
+                        "format": "text"
+                    },
+                    "method": {
+                        "label": "Method",
+                        "format": "text"
+                    },
+                    "url": {
+                        "label": "Link",
+                        "format": "link"
+                    }
+                }
+            }
         }
-      }
     }
-  }
 }

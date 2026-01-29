@@ -1,27 +1,30 @@
 {
   "actorSpecification": 1,
-  "name": "sa-news-intelligence",
-  "title": "📰 World News Intelligence Pipeline",
-  "description": "This Apify Actor processes global news from top sources and generates structured intelligence using **DuckDuckGo Search** for grounding and **OpenAI LLM** analysis. Prioritizes source diversity by cycling through feeds within a selected category.",
-  "version": "0.3",
+  "name": "ai-gaming-esports-summarizer",
+  "title": "🎮 Gaming & Esports News Intelligence Pipeline",
+  "description": "This Apify Actor processes Gaming and Esports news from major RSS feeds and transforms headlines into structured, actionable intelligence using free web search and combined Language Model (LLM) analysis.",
+  "version": "0.3", 
   "dockerfile": "./Dockerfile",
   "entrypoint": "python -m src.main",
   "input": "./input_schema.json",
-  "defaultDataset": {
-    "schema": "./dataset_schema.json"
+  "output": "./output_schema.json",
+  "storages": {
+    "dataset": "./dataset_schema.json"
   },
   "buildTag": "latest",
-  "actorRunInputExample": {
-    "source": "World/Politics",
-    "maxArticles": 20,
+  "actorRunInputExample": { 
+    "source": "all",
+    "maxArticles": 10,
+    "region": "wt-wt",
+    "timeLimit": "w",
     "runTestMode": false
   },
   "authors": [
     {
-      "name": "bySeitz AI & Automation",
+      "name": "bySeitz",
       "url": "https://www.visita.co.za"
     }
   ],
-  "categories": ["News", "World News", "RSS", "AI Summarization", "Analytics"],
+  "categories": ["News", "Gaming", "Esports", "Technology", "AI", "Analytics"],
   "isPublic": true
 }

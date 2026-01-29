@@ -1,12 +1,10 @@
-apify < 4.0.0
-langchain-openai < 1.0.0
-langgraph < 1.0.0
-langchain-community
-pydantic
-feedparser
+apify
+aiohttp
+langgraph
+langchain-core
 openai
-ddgs
-playwright
+pydantic
+requests
 beautifulsoup4
+feedparser
 supabase
-lxml
