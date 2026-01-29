@@ -152,8 +152,8 @@ async def main():
             if not os.getenv("OPENROUTER_API_KEY"):
                 Actor.log.warning("⚠️ OPENROUTER_API_KEY not found. Switching to TEST MODE.")
                 config.runTestMode = True
-            elif not (os.getenv("BRAVE_API_KEY") or os.getenv("BRAVE_SEARCH_API")):
-                Actor.log.warning("⚠️ BRAVE_API_KEY / BRAVE_SEARCH_API missing. Search fallback disabled.")
+            elif not any(os.getenv(k) for k in ["BRAVE_SEARCH_API", "BRAVE_AI_API", "BRAVE_BASE_API", "BRAVE_API_KEY"]):
+                Actor.log.warning("⚠️ No BRAVE_*_API keys found. Search fallback disabled.")
 
         # Graph Setup
         workflow = StateGraph(WorkflowState)
