@@ -10,7 +10,7 @@ def brave_search_fallback(query_title: str, run_test_mode: bool) -> str:
     if run_test_mode:
         return "Source A: Valve announces HL3. Source B: Release date set for 2026."
 
-    api_key = os.getenv("BRAVE_API_KEY")
+    api_key = os.getenv("BRAVE_API_KEY") or os.getenv("BRAVE_SEARCH_API")
     if not api_key:
         Actor.log.error("❌ BRAVE_API_KEY missing in Secrets.")
         return ""
@@ -65,7 +65,7 @@ def find_relevant_image(query: str, run_test_mode: bool) -> str | None:
     if run_test_mode:
         return "https://placehold.co/600x400/png?text=Brave+Backfill"
         
-    api_key = os.getenv("BRAVE_API_KEY")
+    api_key = os.getenv("BRAVE_API_KEY") or os.getenv("BRAVE_SEARCH_API")
     if not api_key:
         return None
         
