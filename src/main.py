@@ -13,8 +13,22 @@ from .services.notifications import send_discord_alert
 from supabase import create_client, Client
 
 # --- HELPER: Ingestor ---
-# Use the new specialized Ingestor
 from .services.ingestor import SupabaseIngestor
+
+# --- State Definition ---
+class WorkflowState(TypedDict):
+    config: InputConfig
+    articles: List[ArticleCandidate]
+    current_index: int
+
+# --- Nodes ---
+
+async def fetch_feeds_node(state: WorkflowState):
+    """Initializes and fetches RSS data."""
+    config = state['config']
+    articles = fetch_feed_data(config)
+    Actor.log.info(f"📚 Queued {len(articles)} articles for analysis.")
+    return {"articles": articles, "current_index": 0}
 
 async def process_article_node(state: WorkflowState):
     """The Core Logic: Scrape -> Fallback -> AI -> Save"""
