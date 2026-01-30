@@ -250,8 +250,22 @@ class SupabaseIngestor:
                       data["category"] = data["category"].lower()
                  else:
                       data["category"] = "other"
+                  if data["category"].lower() in valid_categories:
+                       data["category"] = data["category"].lower()
+                  else:
+                       data["category"] = "other"
             elif not data["category"]:
                  data["category"] = "other"
+        
+        elif target_table == "election_news":
+            # election_news has no category column
+            if "category" in data:
+                del data["category"]
+
+        elif target_table == "entries":
+             # entries uses 'published' instead of 'published_at'
+             if "published_at" in data:
+                 data["published"] = data.pop("published_at")
 
         # Niche Data Injection
 
