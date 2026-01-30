@@ -205,6 +205,9 @@ class SupabaseIngestor:
                  
         elif niche == "motoring":
             target_table = "motoring"
+
+        elif niche == "brics":
+            target_table = "brics_news_events"
             
         # ... map others ... 
         
@@ -220,7 +223,38 @@ class SupabaseIngestor:
             "created_at": "now()"
         }
 
+        # Adapt payload for specific tables
+        if target_table == "brics_news_events":
+            # Field mapping for BRICS table
+            data["ai_summary"] = data.pop("summary") # Rename summary to ai_summary
+            data["sentiment_score"] = analysis.sentiment_score
+            data["entities"] = analysis.key_entities
+            data["location_text"] = analysis.location
+            
+            # Metadata from niche_data
+            if analysis.niche_data:
+                data["metadata"] = analysis.niche_data
+            
+            # Attempt to set topic if present in niche_data
+            if analysis.niche_data and "topic" in analysis.niche_data:
+                data["topic"] = analysis.niche_data["topic"]
+                
+             # Basic category validation (optional, but good for enum consistency)
+            valid_categories = ['diplomacy','summit','economy','trade','energy','defense','sanctions','technology','health','education','infrastructure','governance','other']
+            if data["category"] and data["category"].lower() not in valid_categories:
+                 # If usage provides a mapped category, use it, otherwise 'other' or keep as is if strictness not enforced by ingestor (DB will error or cast)
+                 # Let's map strict for safety if we can, or just let DB handle. 
+                 # Given user input: "category text check (category in ...)" -> It WILL error if invalid.
+                 # Fallback to 'other' if invalid
+                 if data["category"].lower() in valid_categories:
+                      data["category"] = data["category"].lower()
+                 else:
+                      data["category"] = "other"
+            elif not data["category"]:
+                 data["category"] = "other"
+
         # Niche Data Injection
+
         if analysis.niche_data:
              if target_table in ["motoring", "energy", "nuclear_energy"]:
                   data["snippet_sources"] = analysis.niche_data

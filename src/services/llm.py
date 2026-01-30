@@ -107,6 +107,7 @@ def analyze_content(content: str, niche: str = "general", run_test_mode: bool = 
     Analyzes content using LLM to extract structured intelligence.
     """
     if run_test_mode:
+        Actor.log.info("⚠️ AI Analysis running in TEST MODE (Mock Data returned).")
         # Return mock data
         return AnalysisResult(
             sentiment="Moderate Urgency",
@@ -130,6 +131,7 @@ def analyze_content(content: str, niche: str = "general", run_test_mode: bool = 
             api_key=api_key,
         )
         model = "qwen3-coder-plus"
+        Actor.log.info(f"🤖 Starting AI Analysis using Alibaba Qwen ({model})")
     else:
         # Fallback
         Actor.log.warning("⚠️ Alibaba Key missing. Using OpenRouter Fallback.")
@@ -138,6 +140,7 @@ def analyze_content(content: str, niche: str = "general", run_test_mode: bool = 
              api_key=os.getenv("OPENROUTER_API_KEY")
         )
         model = "google/gemini-2.0-flash-exp:free"
+        Actor.log.info(f"🤖 Starting AI Analysis using OpenRouter ({model})")
 
     # Prompt
     prompt = _prepare_prompt(content, niche)
@@ -154,11 +157,20 @@ def analyze_content(content: str, niche: str = "general", run_test_mode: bool = 
         )
         
         result_text = completion.choices[0].message.content
+        
+        # Clean markdown code blocks if present
+        if result_text.startswith("```json"):
+            result_text = result_text[7:]
+        if result_text.endswith("```"):
+            result_text = result_text[:-3]
+        result_text = result_text.strip()
+        
         data = json.loads(result_text)
         
         # Validate/Clean
         if "category" not in data: data["category"] = "General"
         
+        Actor.log.info(f"✨ AI Analysis Complete. Sentiment: {data.get('sentiment')}")
         return AnalysisResult(**data)
 
     except Exception as e:

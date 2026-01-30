@@ -17,6 +17,15 @@ def _get_domain_specific_content(soup: BeautifulSoup, url: str) -> str | None:
                 for junk in content_div.select('.related-posts-container, .teads-adCall, .read-more-posts-container, script, iframe'):
                     junk.decompose()
                 return content_div.get_text(separator=' ', strip=True)
+
+        elif "news24.com" in url:
+            # Target the specific content div for News24
+            content_div = soup.find('div', class_='article__body')
+            if content_div:
+                 # Remove known clutter
+                for junk in content_div.select('.adslot-container, .newsletter-signup--group, .related-links, script, iframe'):
+                    junk.decompose()
+                return content_div.get_text(separator=' ', strip=True)
                 
     except Exception as e:
         Actor.log.warning(f"Domain specific scrape failed for {url}: {e}")

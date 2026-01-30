@@ -74,6 +74,8 @@ async def process_article_node(state: WorkflowState):
          final_image_url = find_relevant_image(article.title, config.runTestMode)
          # Update article model for consistency (optional, but passed to ingestor)
          article.image_url = final_image_url
+    elif final_image_url and config.enableBraveImageBackfill:
+         Actor.log.info("🖼️ Image Backfill skipped: valid image already found.")
 
     # 3. AI Analysis & Ingestion
     if context:
@@ -150,8 +152,12 @@ async def main():
         
         # --- MAINTENANCE FIX ---
         if not config.runTestMode:
-            if not os.getenv("OPENROUTER_API_KEY"):
-                Actor.log.warning("⚠️ OPENROUTER_API_KEY not found. Switching to TEST MODE.")
+            # Check for either provider
+            has_alibaba = bool(os.getenv("ALIBABA_CLOUD_API_KEY"))
+            has_openrouter = bool(os.getenv("OPENROUTER_API_KEY"))
+            
+            if not (has_alibaba or has_openrouter):
+                Actor.log.warning("⚠️ No AI API Keys (Alibaba/OpenRouter) found. Switching to TEST MODE.")
                 config.runTestMode = True
             elif not any(os.getenv(k) for k in ["BRAVE_SEARCH_API", "BRAVE_AI_API", "BRAVE_BASE_API", "BRAVE_API_KEY"]):
                 Actor.log.warning("⚠️ No BRAVE_*_API keys found. Search fallback disabled.")

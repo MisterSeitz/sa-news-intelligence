@@ -1,0 +1,45 @@
+(function () {var c = window.__iat_config = window.__iat_config || window.__tgconf || {};
+c.ts = 1769769736685;
+c.acId = 529;
+c.appId = 2668;
+c.publicId = 'R0PFNQA6';
+c.sellerId = 'ODJTFCWZ';
+c.domain = 'news24.com';
+c.rootPath = 'https://services.insurads.com';
+c.messagingEnabled = 1;
+c.messagingPath = 'https://web-messaging.insurads.com/rt-pub/node';
+c.sessionId = '8797DEE8DED6A7D5';
+c.sectionId = 3108;
+c.g_country = 'ZA';
+c.g_region = 'GP';
+c.g_city = 'Johannesburg';
+c.d_type = 'Personal computer';
+c.d_browser = 'Chrome';
+c.d_os = 'Windows';
+c.znl = {"1334988":{"conf":{"sizes":[{"width":1,"height":1}]},"fp":1,"type":"verification"},"1334986":{"tu":1,"conf":{"bottomHeight":0,"showDelay":0,"showCloseDelay":0,"sizes":[{"width":728,"height":90}]},"type":"bottom","dc":"desktop,tablet"},"1334987":{"tu":1,"conf":{"bottomHeight":0,"showDelay":0,"showCloseDelay":0,"sizes":[{"width":320,"height":50}]},"type":"bottom","dc":"mobile"}};
+c.dads = 0;
+c.ivm = 0;
+c.integrations = {"dfp":{"networkCode":"8900","keyValues":["adname","artid"]}};
+c.funnel = {};
+c.cookies = 1;
+c.allowLockedId = 1;
+c.controlHash = 'RJAAOEIIOZ';
+c.pwt = { noCmpProfile: 35 };
+
+
+var loadScripts = 1;
+if (loadScripts) {
+var s0 = document.createElement('script');
+s0.async = true;
+s0.src = 'https://cdn.insurads.com/iat-realtime-9.0.0.js';
+document.getElementsByTagName('HEAD')[0].appendChild(s0);
+
+var s1 = document.createElement('script');
+s1.async = true;
+s1.src = 'https://cdn.insurads.com/iat-client-1.17.7.js';
+document.getElementsByTagName('HEAD')[0].appendChild(s1);
+}
+
+
+window.__iat_initCb ? window.__iat_initCb() : (window.__tginitcb && window.__tginitcb());
+})();
