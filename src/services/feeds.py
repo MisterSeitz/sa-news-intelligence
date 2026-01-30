@@ -208,6 +208,8 @@ def fetch_feed_data(config: InputConfig) -> List[ArticleCandidate]:
             unique_articles.append(art)
             seen.add(art.url)
     
+    import random
+    random.shuffle(unique_articles)
     Actor.log.info(f"✅ Fetched {len(unique_articles)} recent unique articles (after time filter).")
     return unique_articles[:config.maxArticles]
 

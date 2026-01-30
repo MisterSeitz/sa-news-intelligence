@@ -231,13 +231,13 @@ class SupabaseIngestor:
         # Image
         image_url = raw.get("image_url")
         if image_url:
+             # Promote to top-level column for all tables (including entries)
+             data["image_url"] = image_url
+             
+             # Maintain JSONB legacy for entries
              if target_table == "entries":
                   if "data" not in data: data["data"] = {}
                   data["data"]["image_url"] = image_url
-             else:
-                  # Check if table supports image_url column?
-                  # Assuming most do or ignore if not
-                  data["image_url"] = image_url
 
         try:
              # Emoji Mapping

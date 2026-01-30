@@ -68,6 +68,7 @@ async def process_article_node(state: WorkflowState):
         method = "search_fallback"
         
     # 3. STRATEGY: Brave Image Backfill
+    Actor.log.info(f"🖼️ Checking Image Backfill: HasImage={bool(final_image_url)}, Enabled={config.enableBraveImageBackfill}")
     if not final_image_url and config.enableBraveImageBackfill:
          Actor.log.info(f"🖼️ Backfilling image for: {article.title}")
          final_image_url = find_relevant_image(article.title, config.runTestMode)

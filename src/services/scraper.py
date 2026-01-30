@@ -3,6 +3,26 @@ from bs4 import BeautifulSoup
 from apify import Actor
 import re
 
+
+def _get_domain_specific_content(soup: BeautifulSoup, url: str) -> str | None:
+    """
+    Handles complex sites that fail with generic heuristics.
+    """
+    try:
+        if "citizen.co.za" in url:
+            # Target the specific content div
+            content_div = soup.find('div', class_='single-content')
+            if content_div:
+                # Remove known clutter
+                for junk in content_div.select('.related-posts-container, .teads-adCall, .read-more-posts-container, script, iframe'):
+                    junk.decompose()
+                return content_div.get_text(separator=' ', strip=True)
+                
+    except Exception as e:
+        Actor.log.warning(f"Domain specific scrape failed for {url}: {e}")
+    
+    return None
+
 def scrape_article_content(url: str, run_test_mode: bool) -> tuple[str | None, str | None]:
     """
     Step A: Attempt to scrape the direct URL.
@@ -15,12 +35,13 @@ def scrape_article_content(url: str, run_test_mode: bool) -> tuple[str | None, s
         )
 
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Referer': 'https://www.google.com/'
     }
 
     try:
         Actor.log.info(f"🕷️ Attempting to scrape: {url}")
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers, timeout=15)
         
         # Check for soft blocks or errors
         if response.status_code in [403, 429, 401]:
@@ -44,13 +65,17 @@ def scrape_article_content(url: str, run_test_mode: bool) -> tuple[str | None, s
             if twitter_image:
                  image_url = twitter_image.get('content')
         
-        # Heuristics for article body
-        article_body = soup.find('article') or soup.find('main') or soup.find(class_=re.compile(r'content|post|article'))
+        # 2. Get Text Content
+        text = _get_domain_specific_content(soup, url)
         
-        if article_body:
-            text = article_body.get_text(separator=' ', strip=True)
-        else:
-            text = soup.get_text(separator=' ', strip=True)
+        if not text:
+            # Heuristics for article body fallback
+            article_body = soup.find('article') or soup.find('main') or soup.find(class_=re.compile(r'content|post|article'))
+            
+            if article_body:
+                text = article_body.get_text(separator=' ', strip=True)
+            else:
+                text = soup.get_text(separator=' ', strip=True)
             
         # Cleanup
         clean_text = re.sub(r'\s+', ' ', text).strip()
