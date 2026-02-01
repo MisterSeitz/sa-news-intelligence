@@ -314,21 +314,7 @@ class SupabaseIngestor:
             conflict_col = "url"
             if target_table == "election_news":
                 conflict_col = "source_url"
-            if target_table == "entries":
-                # Special handling for entries (canonical_url)
-                data["canonical_url"] = data["url"]
-                del data["url"]
-                # entries table often has issues with upsert if canonical_url constraint missing
-                # Clean check
-                existing = self.supabase.schema(target_schema).table(target_table).select("id").eq("canonical_url", data["canonical_url"]).execute()
-                if existing.data:
-                    self.supabase.schema(target_schema).table(target_table).update(data).eq("id", existing.data[0]['id']).execute()
-                    Actor.log.info(f"{icon} Updated {target_schema}.{target_table}")
-                    return
-                else:
-                    self.supabase.schema(target_schema).table(target_table).insert(data).execute()
-                    Actor.log.info(f"{icon} Inserted {target_schema}.{target_table}")
-                    return
+
 
             # Standard Upsert
             self.supabase.schema(target_schema).table(target_table).upsert(data, on_conflict=conflict_col).execute()
