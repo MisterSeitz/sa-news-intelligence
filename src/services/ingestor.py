@@ -231,6 +231,10 @@ class SupabaseIngestor:
             data["entities"] = analysis.key_entities
             data["location_text"] = analysis.location
             
+            # Map published_at -> published
+            if "published_at" in data:
+                data["published"] = data.pop("published_at")
+
             # Metadata from niche_data
             if analysis.niche_data:
                 data["metadata"] = analysis.niche_data
@@ -250,10 +254,6 @@ class SupabaseIngestor:
                       data["category"] = data["category"].lower()
                  else:
                       data["category"] = "other"
-                  if data["category"].lower() in valid_categories:
-                       data["category"] = data["category"].lower()
-                  else:
-                       data["category"] = "other"
             elif not data["category"]:
                  data["category"] = "other"
         
@@ -261,9 +261,16 @@ class SupabaseIngestor:
             # election_news has no category column
             if "category" in data:
                 del data["category"]
+            # Map url -> source_url
+            if "url" in data: 
+                data["source_url"] = data.pop("url")
 
         elif target_table == "entries":
-             # entries uses 'published' instead of 'published_at'
+             # entries uses 'published_date' instead of 'published_at'
+             if "published_at" in data:
+                 data["published_date"] = data.pop("published_at")
+
+        elif target_table in ["motoring", "energy", "nuclear_energy", "semiconductors", "brics_news_events"]: # Generic catch-all for niche tables using 'published'
              if "published_at" in data:
                  data["published"] = data.pop("published_at")
 
@@ -293,6 +300,8 @@ class SupabaseIngestor:
             
             # Upsert
             conflict_col = "url"
+            if target_table == "election_news":
+                conflict_col = "source_url"
             if target_table == "entries":
                 # Special handling for entries (canonical_url)
                 data["canonical_url"] = data["url"]
