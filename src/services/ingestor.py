@@ -227,7 +227,7 @@ class SupabaseIngestor:
         if target_table == "brics_news_events":
             # Field mapping for BRICS table
             data["ai_summary"] = data.pop("summary") # Rename summary to ai_summary
-            data["sentiment_score"] = analysis.sentiment_score
+            data["sentiment"] = data.pop("sentiment_label") # Rename sentiment_label to sentiment
             data["entities"] = analysis.key_entities
             data["location_text"] = analysis.location
             
@@ -246,10 +246,6 @@ class SupabaseIngestor:
              # Basic category validation (optional, but good for enum consistency)
             valid_categories = ['diplomacy','summit','economy','trade','energy','defense','sanctions','technology','health','education','infrastructure','governance','other']
             if data["category"] and data["category"].lower() not in valid_categories:
-                 # If usage provides a mapped category, use it, otherwise 'other' or keep as is if strictness not enforced by ingestor (DB will error or cast)
-                 # Let's map strict for safety if we can, or just let DB handle. 
-                 # Given user input: "category text check (category in ...)" -> It WILL error if invalid.
-                 # Fallback to 'other' if invalid
                  if data["category"].lower() in valid_categories:
                       data["category"] = data["category"].lower()
                  else:
@@ -264,15 +260,31 @@ class SupabaseIngestor:
             # Map url -> source_url
             if "url" in data: 
                 data["source_url"] = data.pop("url")
+            # Map sentiment_label -> sentiment
+            if "sentiment_label" in data:
+                data["sentiment"] = data.pop("sentiment_label")
 
         elif target_table == "entries":
              # entries uses 'published_date' instead of 'published_at'
              if "published_at" in data:
                  data["published_date"] = data.pop("published_at")
+             
+             # Category must not be 'Crime'
+             if data.get("category") and data["category"].lower() == "crime":
+                 data["category"] = "Safety"
 
-        elif target_table in ["motoring", "energy", "nuclear_energy", "semiconductors", "brics_news_events"]: # Generic catch-all for niche tables using 'published'
+        elif target_table in ["motoring", "energy", "nuclear_energy", "semiconductors"]: 
+             # Generic catch-all for niche tables using 'published'
              if "published_at" in data:
                  data["published"] = data.pop("published_at")
+             
+             # Map summary -> ai_summary
+             if "summary" in data:
+                 data["ai_summary"] = data.pop("summary")
+            
+             # Map sentiment_label -> sentiment
+             if "sentiment_label" in data:
+                 data["sentiment"] = data.pop("sentiment_label")
 
         # Niche Data Injection
 
